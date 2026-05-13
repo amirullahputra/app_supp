@@ -1,12 +1,12 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=6';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=7';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
   inventoryStatus, daysToEmpty,
   scoreCol, scoreLabel,
   extractTier, applyFilters
-} from './state.js?v=6';
+} from './state.js?v=7';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -42,8 +42,8 @@ function filterBar(){
     return `<button class="tier-chip ${active}" onclick="setTierFilter(${val?`'${val}'`:'null'})" title="${x === 'ALL' ? 'All tiers' : x+' tier'}">${lbl}</button>`;
   }).join('');
   return `<div class="filter-bar">
-    <input type="search" class="input" placeholder="🔍 Cari name/brand/notes..." value="${S.search||''}"
-      oninput="setSearch(this.value)" style="max-width:280px">
+    <input id="search-input" type="search" class="input" placeholder="🔍 Cari name/brand/notes..." value="${S.search||''}"
+      oninput="setSearch(this.value)" style="max-width:280px" autocomplete="off">
     <div class="tier-chips">${chips}</div>
     ${(S.search || S.tierFilter) ? `<button class="btn btn-sm" onclick="clearFilters()" style="margin-left:auto">✕ Clear</button>` : ''}
   </div>`;

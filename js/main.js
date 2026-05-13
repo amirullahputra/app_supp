@@ -11,8 +11,8 @@ function showInitError(label, err){
 window.addEventListener('error', (e) => showInitError('Script Error', e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => showInitError('Promise Rejection', e.reason));
 
-import { S, initDMMaps } from './state.js?v=14';
-import { SUPPLEMENTS, CAT, QUARTERS } from './data.js?v=14';
+import { S, initDMMaps } from './state.js?v=15';
+import { SUPPLEMENTS, CAT, QUARTERS } from './data.js?v=15';
 import {
   loadSupplements, saveSupplementEdit, createSupplement,
   loadInventory, saveInventory,
@@ -21,10 +21,10 @@ import {
   loadInitial,
   openAuthModal, closeAuthModal, doLogin, doLogout, onAuthBtnClick,
   updateAuthUI, setupAuthListener, supa
-} from './supabase.js?v=14';
-import * as panelFns from './panels.js?v=14';
-import * as supaFns from './supabase.js?v=14';
-import * as stateModule from './state.js?v=14';
+} from './supabase.js?v=15';
+import * as panelFns from './panels.js?v=15';
+import * as supaFns from './supabase.js?v=15';
+import * as stateModule from './state.js?v=15';
 
 Object.assign(window, panelFns, supaFns, stateModule, { S, SUPPLEMENTS, CAT });
 
@@ -87,6 +87,10 @@ function renderTabs(){
 function renderPanels(){
   const root = document.getElementById('panels-root');
   if(!root) return;
+  // Quarter row di atas tab menu — render terpisah
+  const qrRoot = document.getElementById('quarter-row-root');
+  if(qrRoot) qrRoot.innerHTML = panelFns.renderQuarterRow ? panelFns.renderQuarterRow() : '';
+
   // Preserve focus + cursor position untuk avoid input "patah-patah" pas search
   const focused = document.activeElement;
   const focusId = focused?.id;

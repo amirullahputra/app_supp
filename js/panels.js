@@ -1,11 +1,11 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=3';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=4';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
   inventoryStatus, daysToEmpty,
   scoreCol, scoreLabel
-} from './state.js?v=3';
+} from './state.js?v=4';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -196,7 +196,7 @@ export function pOverview(){
 }
 
 // ════════════════════════════════════════════════════════════
-// TAB 1 — DECISION MATRIX
+// TAB 1 — DECISION MATRIX (2-col drag-drop: Library ↔ Active)
 // ════════════════════════════════════════════════════════════
 export function pDM(){
   if(!SUPPLEMENTS.length) return `<div class="card">${emptyState('⏳', 'Loading...')}</div>`;
@@ -209,82 +209,71 @@ export function pDM(){
   const qLbl = quarterLabel(qid);
   const dmMap = S.dmByQuarter[qid] || new Map();
 
-  // Split supplements: by stage + library (belum di-stage)
-  const stagedIds = new Set(dmMap.keys());
-  const library = SUPPLEMENTS.filter(s => !stagedIds.has(s.id))
+  // Active = stage 'deal' (binary: library OR active)
+  const activeIds = new Set();
+  dmMap.forEach((stage, id) => { if(stage === 'deal') activeIds.add(id); });
+
+  const library = SUPPLEMENTS.filter(s => !activeIds.has(s.id))
+    .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
+  const active = SUPPLEMENTS.filter(s => activeIds.has(s.id))
     .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
 
-  const byStage = { watchlist: [], tentatif: [], deal: [] };
-  dmMap.forEach((stage, suppId) => {
-    const s = findSupp(suppId);
-    if(s && byStage[stage]) byStage[stage].push(s);
-  });
-  Object.keys(byStage).forEach(k => {
-    byStage[k].sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
-  });
-
-  const renderSuppCard = (s, currentStage) => {
+  const renderCard = (s, sourceZone) => {
     const eff = s.efficiency_score || 0;
-    const moveBtns = ['watchlist','tentatif','deal'].filter(st => st !== currentStage).map(st =>
-      `<button class="dm-mvbtn" onclick="dmMove(${s.id}, '${st}')" title="Move to ${STAGES[st].label}">${STAGES[st].icon}</button>`
-    ).join('');
-    const removeBtn = currentStage ? `<button class="dm-mvbtn dm-rmbtn" onclick="dmRemove(${s.id})" title="Drop ke Library">↩</button>` : '';
-    return `<div class="dm-card">
+    return `<div class="dm-card" draggable="true"
+      ondragstart="dmDragStart(event, ${s.id}, '${sourceZone}')"
+      ondragend="dmDragEnd(event)">
       <div class="dm-card-row">
         <span class="lb ${CAT[s.category].cls}" style="font-size:8px">${CAT[s.category].icon}</span>
         <div class="dm-card-name">${s.name}</div>
         <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:${scoreCol(eff)}">${eff}</span>
       </div>
-      <div class="dm-card-actions">${moveBtns}${removeBtn}</div>
-    </div>`;
-  };
-
-  const libCol = `<div class="dm-col">
-    <div class="dm-col-hdr">📚 Library · ${library.length}</div>
-    <div class="dm-col-body">
-      ${library.length === 0 ? `<div style="color:var(--t3);font-size:10px;padding:10px 0;text-align:center">Semua sudah di-stage</div>` :
-        library.map(s => {
-          const eff = s.efficiency_score || 0;
-          return `<div class="dm-card">
-            <div class="dm-card-row">
-              <span class="lb ${CAT[s.category].cls}" style="font-size:8px">${CAT[s.category].icon}</span>
-              <div class="dm-card-name">${s.name}</div>
-              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:${scoreCol(eff)}">${eff}</span>
-            </div>
-            <div class="dm-card-actions">
-              <button class="dm-mvbtn" onclick="dmMove(${s.id}, 'watchlist')" title="To Watchlist">📋</button>
-              <button class="dm-mvbtn" onclick="dmMove(${s.id}, 'tentatif')" title="To Tentatif">⚖️</button>
-              <button class="dm-mvbtn" onclick="dmMove(${s.id}, 'deal')" title="To Deal">✅</button>
-            </div>
-          </div>`;
-        }).join('')}
-    </div>
-  </div>`;
-
-  const stageCol = (key) => {
-    const st = STAGES[key];
-    const items = byStage[key];
-    return `<div class="dm-col" style="border-top:3px solid ${st.color}">
-      <div class="dm-col-hdr" style="background:${st.bg};color:${st.color}">${st.icon} ${st.label} · ${items.length}</div>
-      <div class="dm-col-body">
-        ${items.length === 0 ? `<div style="color:var(--t3);font-size:10px;padding:10px 0;text-align:center">Drop supplement ke sini</div>` :
-          items.map(s => renderSuppCard(s, key)).join('')}
+      <div class="dm-card-actions">
+        ${sourceZone === 'library'
+          ? `<button class="dm-mvbtn dm-mvbtn-active" onclick="dmMove(${s.id}, 'deal')" title="Aktifkan">✅ Aktifkan</button>`
+          : `<button class="dm-mvbtn dm-rmbtn" onclick="dmRemove(${s.id})" title="Drop ke Library">↩ Drop</button>`}
       </div>
     </div>`;
   };
 
+  const libCol = `<div class="dm-col"
+      ondragover="event.preventDefault(); this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="dmDrop(event, 'library')">
+    <div class="dm-col-hdr">📚 Library · ${library.length} <span style="font-weight:400;color:var(--t3);font-size:10px;margin-left:4px">(belum aktif)</span></div>
+    <div class="dm-col-body">
+      ${library.length === 0
+        ? `<div style="color:var(--t3);font-size:10px;padding:10px 0;text-align:center">Semua supplement aktif</div>`
+        : library.map(s => renderCard(s, 'library')).join('')}
+    </div>
+  </div>`;
+
+  const activeCol = `<div class="dm-col dm-col-active"
+      ondragover="event.preventDefault(); this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="dmDrop(event, 'active')">
+    <div class="dm-col-hdr dm-col-hdr-active">✅ Active · ${active.length} <span style="font-weight:400;font-size:10px;margin-left:4px">(konsumsi quarter ini)</span></div>
+    <div class="dm-col-body">
+      ${active.length === 0
+        ? `<div style="color:var(--t3);font-size:11px;padding:20px 10px;text-align:center;border:2px dashed var(--bdr2);border-radius:6px;margin:10px 0">⬅️ Drag supplement dari Library<br>atau klik tombol <b>✅ Aktifkan</b></div>`
+        : active.map(s => renderCard(s, 'active')).join('')}
+    </div>
+  </div>`;
+
   return `${renderQuarterRow()}
   <div class="card">
-    <div class="card-title"><span class="ico">🎯</span> Decision Matrix — ${qLbl}</div>
-    <div class="dm-grid">
+    <div class="card-title">
+      <span class="ico">🎯</span>
+      <span>Decision Matrix — ${qLbl}</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--t2)">${active.length} active · ${library.length} library</span>
+    </div>
+    <div class="dm-grid-2">
       ${libCol}
-      ${stageCol('watchlist')}
-      ${stageCol('tentatif')}
-      ${stageCol('deal')}
+      ${activeCol}
     </div>
     <div class="note" style="margin-top:10px">
-      <b>Workflow:</b> drag supplement dari Library → Watchlist (mau coba) → Tentatif (mau beli) → Deal (active konsumsi).
-      Status <b>Deal</b> jadi default ON di Budget Filter.
+      <b>Cara pakai:</b> drag supplement dari Library ke Active (atau sebaliknya). Bisa juga klik tombol <b>✅ Aktifkan</b> / <b>↩ Drop</b>.
+      Status <b>Active</b> jadi default ON di Budget Filter quarter ini.
     </div>
   </div>`;
 }

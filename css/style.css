@@ -137,19 +137,27 @@ th.r,td.r{text-align:right}
 .qstat-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--t0);line-height:1.2}
 .bdg-act{display:inline-block;background:var(--acc);color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:6px;margin-left:4px}
 
-/* Decision Matrix grid (4 columns: Library + 3 stages) */
-.dm-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
-.dm-col{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden}
-.dm-col-hdr{padding:8px 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;background:var(--bg3);border-bottom:1px solid var(--bdr);color:var(--t1)}
-.dm-col-body{padding:8px;max-height:540px;overflow-y:auto}
-.dm-card{background:var(--bg1);border:1px solid var(--bdr);border-radius:6px;padding:6px 8px;margin-bottom:5px;transition:all .15s}
-.dm-card:hover{border-color:var(--acc);box-shadow:0 1px 4px rgba(124,58,237,.15)}
-.dm-card-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.dm-card-name{flex:1;font-size:11px;font-weight:700;color:var(--t0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dm-card-actions{display:flex;gap:3px;justify-content:flex-end}
-.dm-mvbtn{padding:2px 6px;border-radius:4px;border:1px solid var(--bdr);background:var(--bg2);font-size:11px;cursor:pointer;transition:all .15s}
+/* Decision Matrix grid 2-col (Library + Active) */
+.dm-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:500px}
+.dm-col{background:var(--bg2);border:2px solid var(--bdr);border-radius:var(--r2);overflow:hidden;transition:all .18s}
+.dm-col.drag-over{border-color:var(--acc);background:var(--acc-bg);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
+.dm-col-active{border-color:var(--vit)}
+.dm-col-hdr{padding:10px 12px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;background:var(--bg3);border-bottom:2px solid var(--bdr);color:var(--t1)}
+.dm-col-hdr-active{background:var(--vit-bg);color:var(--vit);border-bottom-color:var(--vit)}
+.dm-col-body{padding:10px;max-height:680px;overflow-y:auto;min-height:200px}
+.dm-card{background:var(--bg1);border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:grab;transition:all .15s;user-select:none}
+.dm-card:hover{border-color:var(--acc);box-shadow:0 2px 6px rgba(124,58,237,.18);transform:translateY(-1px)}
+.dm-card:active{cursor:grabbing}
+.dm-card.dragging{opacity:.45;cursor:grabbing;transform:scale(.95)}
+.dm-card-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.dm-card-name{flex:1;font-size:12px;font-weight:700;color:var(--t0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-card-actions{display:flex;gap:5px;justify-content:flex-end}
+.dm-mvbtn{padding:4px 10px;border-radius:5px;border:1px solid var(--bdr);background:var(--bg2);font-size:10px;font-weight:700;cursor:pointer;transition:all .15s;font-family:inherit;color:var(--t1)}
 .dm-mvbtn:hover{background:var(--acc);color:#fff;border-color:var(--acc)}
-.dm-rmbtn:hover{background:var(--warn);border-color:var(--warn)}
+.dm-mvbtn-active{background:var(--vit-bg);color:var(--vit);border-color:var(--vit)}
+.dm-mvbtn-active:hover{background:var(--vit);color:#fff;border-color:var(--vit)}
+.dm-rmbtn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bdr)}
+.dm-rmbtn:hover{background:var(--warn);color:#fff;border-color:var(--warn)}
 
 /* Budget table row off (unchecked) */
 .bud-row-off{opacity:.4}
@@ -159,5 +167,5 @@ th.r,td.r{text-align:right}
 @media (max-width: 980px){
   .phase-row{grid-template-columns:1fr 1fr}
   .grid2{grid-template-columns:1fr}
-  .dm-grid{grid-template-columns:1fr 1fr}
+  .dm-grid-2{grid-template-columns:1fr}
 }

@@ -11,8 +11,8 @@ function showInitError(label, err){
 window.addEventListener('error', (e) => showInitError('Script Error', e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => showInitError('Promise Rejection', e.reason));
 
-import { S, initDMMaps } from './state.js?v=3';
-import { SUPPLEMENTS, CAT, QUARTERS } from './data.js?v=3';
+import { S, initDMMaps } from './state.js?v=4';
+import { SUPPLEMENTS, CAT, QUARTERS } from './data.js?v=4';
 import {
   loadSupplements, saveSupplementEdit, createSupplement,
   loadInventory, saveInventory,
@@ -21,10 +21,10 @@ import {
   loadInitial,
   openAuthModal, closeAuthModal, doLogin, doLogout, onAuthBtnClick,
   updateAuthUI, setupAuthListener, supa
-} from './supabase.js?v=3';
-import * as panelFns from './panels.js?v=3';
-import * as supaFns from './supabase.js?v=3';
-import * as stateModule from './state.js?v=3';
+} from './supabase.js?v=4';
+import * as panelFns from './panels.js?v=4';
+import * as supaFns from './supabase.js?v=4';
+import * as stateModule from './state.js?v=4';
 
 Object.assign(window, panelFns, supaFns, stateModule, { S, SUPPLEMENTS, CAT });
 
@@ -74,7 +74,7 @@ function renderPanels(){
 }
 window.renderPanels = renderPanels;
 
-// ── DECISION MATRIX HANDLERS ──
+// ── DECISION MATRIX HANDLERS (click + drag-drop) ──
 window.dmMove = async function(suppId, toStage){
   if(!S.user){ alert('Login dulu'); return; }
   try {
@@ -89,6 +89,41 @@ window.dmRemove = async function(suppId){
     await removeDMStage(S.quarter, suppId);
     renderPanels();
   } catch(e){ alert('Gagal remove: '+(e.message||e)); }
+};
+
+// Drag-and-drop: pakai HTML5 DnD API
+let _dragState = null;
+
+window.dmDragStart = function(event, suppId, sourceZone){
+  _dragState = { suppId, sourceZone };
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(suppId));
+  // Visual feedback on dragged card
+  event.target.classList.add('dragging');
+};
+
+window.dmDragEnd = function(event){
+  event.target.classList.remove('dragging');
+  // Cleanup any leftover drag-over class
+  document.querySelectorAll('.dm-col.drag-over').forEach(el => el.classList.remove('drag-over'));
+};
+
+window.dmDrop = async function(event, targetZone){
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  if(!_dragState){ return; }
+  const { suppId, sourceZone } = _dragState;
+  _dragState = null;
+  if(sourceZone === targetZone){ return; }  // dropped in same column
+  if(!S.user){ alert('Login dulu'); return; }
+  try {
+    if(targetZone === 'active'){
+      await setDMStage(S.quarter, suppId, 'deal');
+    } else if(targetZone === 'library'){
+      await removeDMStage(S.quarter, suppId);
+    }
+    renderPanels();
+  } catch(e){ alert('Gagal: '+(e.message||e)); }
 };
 
 // ── BUDGET HANDLERS ──

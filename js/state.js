@@ -1,5 +1,5 @@
 // State container + cost utilities — single source of truth for runtime data.
-import { SUPPLEMENTS, QUARTERS, VISIBLE_QIDS } from './data.js?v=10';
+import { SUPPLEMENTS, QUARTERS, VISIBLE_QIDS } from './data.js?v=11';
 
 function defaultQuarter(){
   const today = new Date();
@@ -31,27 +31,29 @@ export function extractTier(notes){
   return m ? m[1].toUpperCase() : null;
 }
 
-// Extract "function key" dari nama supplement untuk grouping.
-// Tujuan: "Creatine Monohydrate 1kg" + "Creatine Monohydrate 300g ON" → key sama "Creatine Monohydrate"
-// Heuristik: ambil word2 dari nama, stop di token yang start dengan digit atau unit.
+// Extract "function + dose key" dari nama untuk grouping di container needs.
+// Logic: func name + dose value + unit. Brand suffix di-strip.
+// - "Creatine Monohydrate 300g ON"   → "Creatine Monohydrate 300g"
+// - "Vitamin D3 5000 IU Thorne"      → "Vitamin D3 5000 IU"
+// - "Vitamin D3 10000 IU"            → "Vitamin D3 10000 IU"  (beda dose = beda group)
+// - "Iron Bisglycinate 25 mg Thorne" → "Iron Bisglycinate 25 mg"
+// - "EAA Essential Amino Acids"      → "EAA Essential Amino Acids" (no number, full name)
 export function funcKey(name){
   if(!name) return '';
-  const units = new Set(['g','mg','mcg','kg','iu','lbs','ml','oz','tablet','capsule','scoop','softgel','lozenge']);
-  const parts = String(name).trim().split(/\s+/);
-  const out = [];
-  for(const p of parts){
-    if(/^\d/.test(p)) break;
-    if(units.has(p.toLowerCase())) break;
-    out.push(p);
+  const tokens = String(name).trim().split(/\s+/);
+  // Find first token yang start dgn digit (= dose)
+  let numIdx = -1;
+  for(let i=0; i<tokens.length; i++){
+    if(/^\d/.test(tokens[i])){ numIdx = i; break; }
   }
-  return (out.join(' ') || name).trim();
-}
-
-// "Variant suffix" — sisa nama setelah funcKey (e.g. "1kg" dari "Creatine Monohydrate 1kg")
-export function funcVariant(name){
-  const key = funcKey(name);
-  const rest = String(name || '').slice(key.length).trim();
-  return rest || name;
+  if(numIdx < 0) return name;  // no number = pakai full name
+  // Include next token kalau unit (mg, IU, g, dll)
+  const units = new Set(['g','mg','mcg','kg','iu','lbs','ml','oz','tablet','capsule','scoop','softgel','lozenge']);
+  let endIdx = numIdx;
+  if(numIdx+1 < tokens.length && units.has(tokens[numIdx+1].toLowerCase())){
+    endIdx = numIdx + 1;
+  }
+  return tokens.slice(0, endIdx+1).join(' ');
 }
 
 // Apply S.search + S.tierFilter ke supplement list (Compounds + DM Library)

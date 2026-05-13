@@ -1,13 +1,13 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=10';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=11';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
   inventoryStatus, daysToEmpty,
   scoreCol, scoreLabel,
   extractTier, applyFilters,
-  funcKey, funcVariant
-} from './state.js?v=10';
+  funcKey
+} from './state.js?v=11';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -102,47 +102,124 @@ export function renderQuarterRow(){
   return `<div class="phase-row">${cards.join('')}</div>`;
 }
 
-// ════════════════════════════════════════════════════════════
-// TAB 0 — OVERVIEW
-// ════════════════════════════════════════════════════════════
-export function pOverview(){
-  if(!SUPPLEMENTS.length) return `<div class="card">${emptyState('⏳', 'Loading...')}</div>`;
-
+// ── HELPER: scope quarters + active union ──
+function getScope(){
   const allMode = S.viewAll === true;
   const qid = S.quarter || QUARTERS[0];
   const qLbl = allMode ? 'All Quarters' : quarterLabel(qid);
   const scopeQuarters = allMode ? VISIBLE_QIDS.filter(q => selFor(q).size > 0) : [qid];
-
-  // Active union across scope
-  const dealt = new Set();
-  scopeQuarters.forEach(q => selFor(q).forEach(id => dealt.add(id)));
-
-  // ── Card 1: Restock Alert — scope ke supplement yang AKTIF (di-checkbox Budget)
-  // di scope quarter. Kalau ga ada budget, fallback ke DM 'deal' (selFor handles).
   const activeUnion = new Set();
   scopeQuarters.forEach(q => selFor(q).forEach(id => activeUnion.add(id)));
-  const needRestock = SUPPLEMENTS.filter(s => activeUnion.has(s.id) && inventoryStatus(s) !== 'ok');
-  const restockCard = activeUnion.size === 0
-    ? `<div class="card"><div class="card-title"><span class="ico">📋</span> Restock Status</div>
-       <div style="padding:14px 0;color:var(--t3);font-size:12px">Belum ada supplement aktif di quarter ini. Buka <button onclick="setTab(1)" class="btn btn-sm btn-primary" style="margin-left:6px">Decision Matrix</button> untuk aktivasi.</div></div>`
-    : needRestock.length === 0
-    ? `<div class="card"><div class="card-title"><span class="ico">✅</span> Restock Status · ${activeUnion.size} active</div>
-       <div style="padding:14px 0;color:var(--vit);font-weight:700">Semua stock supplement aktif aman ✓</div></div>`
-    : `<div class="card"><div class="card-title"><span class="ico">⚠️</span> Restock Alert · ${needRestock.length}/${activeUnion.size} active</div>
-       ${needRestock.slice(0,8).map(s => {
-         const inv = S.inventoryBySupp[s.id];
-         const qty = inv?.qty_containers || 0;
-         const dte = daysToEmpty(s);
-         return `<div class="daily-row">
-           <div class="name">${catBadge(s.category)} ${s.name}</div>
-           <div class="dose">${qty} botol · ${dte!==null ? dte+'h lagi' : '—'}</div>
-           <div class="actions"><button class="btn btn-sm btn-primary" onclick="openInvModal(${s.id})">Stok →</button></div>
-         </div>`;
-       }).join('')}
-       <div class="note" style="margin-top:8px">Scope: supplement yang ke-centang di Budget Filter (atau Active di DM kalau Budget belum di-set).</div>
-       </div>`;
+  return { allMode, qid, qLbl, scopeQuarters, activeUnion };
+}
 
-  // ── Card 2: Biaya per Kategori
+// ── HELPER: render Restock Alert card (used di Budget tab) ──
+function restockCardHTML(){
+  const { qLbl, scopeQuarters, activeUnion } = getScope();
+  const needRestock = SUPPLEMENTS.filter(s => activeUnion.has(s.id) && inventoryStatus(s) !== 'ok');
+  if(activeUnion.size === 0){
+    return `<div class="card"><div class="card-title"><span class="ico">📋</span> Restock Alert — ${qLbl}</div>
+      <div style="padding:14px 0;color:var(--t3);font-size:12px">Belum ada supplement aktif di quarter ini. Buka <button onclick="setTab(1)" class="btn btn-sm btn-primary" style="margin-left:6px">Decision Matrix</button> untuk aktivasi.</div></div>`;
+  }
+  if(needRestock.length === 0){
+    return `<div class="card"><div class="card-title"><span class="ico">✅</span> Restock Alert · ${activeUnion.size} active</div>
+      <div style="padding:14px 0;color:var(--vit);font-weight:700">Semua stock supplement aktif aman ✓</div></div>`;
+  }
+  return `<div class="card">
+    <div class="card-title"><span class="ico">⚠️</span> Restock Alert · ${needRestock.length}/${activeUnion.size} active</div>
+    <table>
+      <thead><tr>
+        <th class="c">Tier</th><th>Kategori</th><th>Supplement (Brand)</th>
+        <th class="c">Dose</th><th class="c">Score</th><th class="c">Stock</th><th class="c">Habis</th><th class="c">Action</th>
+      </tr></thead>
+      <tbody>
+      ${needRestock.map(s => {
+        const inv = S.inventoryBySupp[s.id];
+        const qty = inv?.qty_containers || 0;
+        const dte = daysToEmpty(s);
+        const dteCol = dte !== null && dte <= 7 ? 'var(--warn)' : 'var(--t1)';
+        return `<tr>
+          <td class="c">${tierBadge(s.notes)}</td>
+          <td>${catBadge(s.category)}</td>
+          <td>
+            <div style="font-weight:700;color:var(--t0)">${s.name}</div>
+            <div style="font-size:10px;color:var(--acc);font-weight:600">${s.brand || '—'}</div>
+          </td>
+          <td class="c"><span class="mono">${s.dose_per_serving || '—'} ${s.dose_unit || s.unit}</span><div style="font-size:9px;color:var(--t3)">${s.daily_servings||1}/hari</div></td>
+          <td class="c"><span class="mono" style="color:${scoreCol(s.efficiency_score)};font-weight:800">${s.efficiency_score ?? '—'}</span></td>
+          <td class="c"><span class="mono" style="font-size:14px;font-weight:800;color:var(--warn)">${qty}</span><div style="font-size:9px;color:var(--t3)">botol</div></td>
+          <td class="c"><span class="mono" style="color:${dteCol};font-weight:700">${dte === null ? '—' : dte+'h'}</span></td>
+          <td class="c"><button class="btn btn-sm btn-primary" onclick="openInvModal(${s.id})">Stok →</button></td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:8px">Scope: supplement yang ke-centang di Budget Filter (atau Active di DM kalau Budget belum di-set).</div>
+  </div>`;
+}
+
+// ── HELPER: render Kebutuhan Container card (used di Budget tab) ──
+function containerCardHTML(){
+  const { qLbl, scopeQuarters, activeUnion } = getScope();
+  const sortedSelected = [...activeUnion].map(id => findSupp(id)).filter(Boolean)
+    .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
+  // Group by funcKey (dose-aware): "Vitamin D3 5000 IU" ≠ "Vitamin D3 10000 IU"
+  const groupMap = new Map();
+  sortedSelected.forEach(s => {
+    let containers = 0, cost = 0;
+    scopeQuarters.forEach(q => {
+      if(selFor(q).has(s.id)){
+        const r = quarterCost(s, q);
+        containers += r.containers;
+        cost += r.cost;
+      }
+    });
+    if(containers <= 0) return;
+    const key = funcKey(s.name);
+    if(!groupMap.has(key)){
+      groupMap.set(key, { funcName: key, cat: s.category, containers: 0, cost: 0 });
+    }
+    const g = groupMap.get(key);
+    g.containers += containers;
+    g.cost += cost;
+  });
+  const groups = [...groupMap.values()].sort((a,b) => b.containers - a.containers);
+  const maxC = Math.max(1, ...groups.map(g => g.containers));
+  const totalC = groups.reduce((a,g) => a+g.containers, 0);
+  const totalCost = groups.reduce((a,g) => a+g.cost, 0);
+
+  return `<div class="card">
+    <div class="card-title"><span class="ico">📦</span> Kebutuhan Container — ${qLbl}</div>
+    ${groups.length === 0
+      ? '<div style="color:var(--t3);font-size:11px;padding:14px 0">Tidak ada kebutuhan container.</div>'
+      : groups.map(g => `
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bdr)">
+            <div style="width:220px;font-size:12px;display:flex;align-items:center;gap:6px">
+              <span class="lb ${CAT[g.cat].cls}" style="font-size:8px;flex-shrink:0">${CAT[g.cat].icon}</span>
+              <b style="color:var(--t0)">${g.funcName}</b>
+            </div>
+            <div style="flex:1;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden">
+              <div style="width:${g.containers/maxC*100}%;height:100%;background:var(--acc)"></div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;min-width:70px;text-align:right;color:var(--acc)">${g.containers} btl</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;min-width:80px;text-align:right;color:var(--t2)">${rpM(g.cost)}</div>
+          </div>`).join('') +
+        `<div style="border-top:2px solid var(--bdr2);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between">
+          <span style="font-size:11px;font-weight:800">Total Cost: <span style="font-family:'JetBrains Mono',monospace;color:var(--acc)">${rpM(totalCost)}</span></span>
+          <span style="font-size:11px;font-weight:800">Total: <span style="font-family:'JetBrains Mono',monospace;color:var(--acc)">${totalC} container</span></span>
+        </div>`
+    }
+  </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// TAB 0 — OVERVIEW (data bersih — biaya per kategori + supplement selected)
+// ════════════════════════════════════════════════════════════
+export function pOverview(){
+  if(!SUPPLEMENTS.length) return `<div class="card">${emptyState('⏳', 'Loading...')}</div>`;
+  const { qLbl, scopeQuarters, activeUnion } = getScope();
+
+  // ── Card 1: Biaya per Kategori
   const cc = {}; Object.keys(CAT).forEach(k => cc[k] = 0);
   scopeQuarters.forEach(q => {
     const sel = selFor(q);
@@ -167,8 +244,8 @@ export function pOverview(){
     ${catBars}
   </div>`;
 
-  // ── Card 3: Supplement Selected (sorted by score)
-  const sortedSelected = [...dealt].map(id => findSupp(id)).filter(Boolean)
+  // ── Card 2: Supplement Selected (sorted by score)
+  const sortedSelected = [...activeUnion].map(id => findSupp(id)).filter(Boolean)
     .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
   const maxEff = Math.max(...sortedSelected.map(s => s.efficiency_score||0), 1);
   const selectedCard = `<div class="card">
@@ -180,7 +257,7 @@ export function pOverview(){
           return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
             <div style="font-size:9px;color:var(--t3);width:14px;text-align:right">${i+1}</div>
             <span class="lb ${CAT[s.category].cls}" style="font-size:8px;min-width:80px;text-align:center">${CAT[s.category].label}</span>
-            <div style="font-size:11px;font-weight:700;color:var(--t0);width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
+            <div style="font-size:11px;font-weight:700;color:var(--t0);width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
             <div style="flex:1;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden">
               <div style="width:${Math.round(eff/maxEff*100)}%;height:100%;background:${scoreCol(eff)}"></div>
             </div>
@@ -191,65 +268,9 @@ export function pOverview(){
     }
   </div>`;
 
-  // ── Card 4: Kebutuhan Container — GROUP by funcKey (same function = same group)
-  // Mis. "Creatine Monohydrate 1kg" + "Creatine Monohydrate 300g ON" → 1 group "Creatine Monohydrate"
-  const groupMap = new Map();
-  sortedSelected.forEach(s => {
-    let containers = 0, cost = 0;
-    scopeQuarters.forEach(q => {
-      if(selFor(q).has(s.id)){
-        const r = quarterCost(s, q);
-        containers += r.containers;
-        cost += r.cost;
-      }
-    });
-    if(containers <= 0) return;
-    const key = funcKey(s.name);
-    if(!groupMap.has(key)){
-      groupMap.set(key, { funcName: key, cat: s.category, containers: 0, cost: 0, variants: [] });
-    }
-    const g = groupMap.get(key);
-    g.containers += containers;
-    g.cost += cost;
-    g.variants.push({ name: s.name, brand: s.brand, containers, cost, variant: funcVariant(s.name) });
-  });
-  const containerGroups = [...groupMap.values()].sort((a,b) => b.containers - a.containers);
-  const maxC = Math.max(1, ...containerGroups.map(g => g.containers));
-  const totalC = containerGroups.reduce((a,g) => a+g.containers, 0);
-  const totalCost = containerGroups.reduce((a,g) => a+g.cost, 0);
-
-  const containerCard = `<div class="card">
-    <div class="card-title"><span class="ico">📦</span> Kebutuhan Container — ${qLbl} <span style="font-size:10px;font-weight:600;color:var(--t3);margin-left:6px">grouped by function</span></div>
-    ${containerGroups.length === 0
-      ? '<div style="color:var(--t3);font-size:11px;padding:14px 0">Tidak ada kebutuhan container.</div>'
-      : containerGroups.map(g => {
-          const variantText = g.variants.length > 1
-            ? g.variants.map(v => `${v.containers}× ${v.variant}${v.brand?` (${v.brand})`:''}`).join(' · ')
-            : (g.variants[0].brand || '');
-          return `<div style="padding:6px 0;border-bottom:1px solid var(--bdr)">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="width:200px;font-size:11.5px">
-                <span class="lb ${CAT[g.cat].cls}" style="font-size:8px">${CAT[g.cat].icon} ${CAT[g.cat].label}</span>
-                <b style="color:var(--t0)">${g.funcName}</b>
-              </div>
-              <div style="flex:1;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden">
-                <div style="width:${g.containers/maxC*100}%;height:100%;background:var(--acc)"></div>
-              </div>
-              <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;min-width:60px;text-align:right;color:var(--acc)">${g.containers} btl</div>
-            </div>
-            ${variantText ? `<div style="font-size:9.5px;color:var(--t3);margin-top:3px;margin-left:8px">${variantText}</div>` : ''}
-          </div>`;
-        }).join('') + `<div style="border-top:2px solid var(--bdr2);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between">
-          <span style="font-size:11px;font-weight:800">Total Cost: <span style="font-family:'JetBrains Mono',monospace;color:var(--acc)">${rpM(totalCost)}</span></span>
-          <span style="font-size:11px;font-weight:800">Total: <span style="font-family:'JetBrains Mono',monospace;color:var(--acc)">${totalC} container</span></span>
-        </div>`
-    }
-  </div>`;
-
   return `
   ${renderQuarterRow()}
-  <div class="grid2" style="margin-bottom:12px">${restockCard}${biayaCard}</div>
-  <div class="grid2">${selectedCard}${containerCard}</div>`;
+  <div class="grid2">${biayaCard}${selectedCard}</div>`;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -364,7 +385,9 @@ export function pBudget(){
       <div class="card-title"><span class="ico">💰</span> Filter Budget — ${qLbl}</div>
       ${emptyState('📋', 'Belum ada supplement di stage Deal untuk quarter ini.')}
       <div style="text-align:center;margin-top:8px"><button class="btn btn-primary" onclick="setTab(1)">Buka Decision Matrix →</button></div>
-    </div>`;
+    </div>
+    ${restockCardHTML()}
+    ${containerCardHTML()}`;
   }
 
   // Current Budget selection (fallback ke deal kalau belum ada selection)
@@ -432,11 +455,13 @@ export function pBudget(){
       Centang/uncheck untuk include/exclude. Source: stage <b>Deal</b> di Decision Matrix.
       Klik <b>💾 Save Budget</b> untuk persist selection ke DB.
     </div>
-  </div>`;
+  </div>
+  ${restockCardHTML()}
+  ${containerCardHTML()}`;
 }
 
 // ════════════════════════════════════════════════════════════
-// TAB 3 — COMPOUNDS (master list, no Stock col — stock di Overview)
+// TAB 3 — COMPOUNDS (master list, no Stock col)
 // ════════════════════════════════════════════════════════════
 export function pCompounds(){
   if(!SUPPLEMENTS.length) return `<div class="card">${emptyState('⏳', 'Loading catalog...')}</div>`;

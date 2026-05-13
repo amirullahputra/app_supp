@@ -1,5 +1,5 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=11';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=12';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
@@ -7,7 +7,7 @@ import {
   scoreCol, scoreLabel,
   extractTier, applyFilters,
   funcKey
-} from './state.js?v=11';
+} from './state.js?v=12';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -213,13 +213,68 @@ function containerCardHTML(){
 }
 
 // ════════════════════════════════════════════════════════════
-// TAB 0 — OVERVIEW (data bersih — biaya per kategori + supplement selected)
+// TAB 0 — OVERVIEW
+// Cards: Running Minggu Ini · Biaya Kategori · Supplement Selected · Kebutuhan Container
 // ════════════════════════════════════════════════════════════
 export function pOverview(){
   if(!SUPPLEMENTS.length) return `<div class="card">${emptyState('⏳', 'Loading...')}</div>`;
   const { qLbl, scopeQuarters, activeUnion } = getScope();
+  const activeSupps = [...activeUnion].map(id => findSupp(id)).filter(Boolean)
+    .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
 
-  // ── Card 1: Biaya per Kategori
+  // ── Card 1: Running Minggu Ini — group by timing_note
+  // Show: nama (funcKey), brand, daily dose, timing
+  const today = new Date();
+  const dayLbl = today.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const timingGroups = new Map(); // timing → [supp]
+  activeSupps.forEach(s => {
+    const t = (s.timing_note || 'Bebas').trim();
+    if(!timingGroups.has(t)) timingGroups.set(t, []);
+    timingGroups.get(t).push(s);
+  });
+  // Sort timing keys logical: morning → noon → evening → night
+  const timingOrder = ['Pagi','Morning','AM','Pre-workout','Pre/Intra','Lunch','Siang','Post-workout','Sore','Pre-bed','PM','Sebelum tidur','Evening','Bebas','Dengan makan'];
+  const sortedTimings = [...timingGroups.keys()].sort((a,b) => {
+    const ai = timingOrder.findIndex(k => a.toLowerCase().includes(k.toLowerCase()));
+    const bi = timingOrder.findIndex(k => b.toLowerCase().includes(k.toLowerCase()));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
+  const runningCard = activeSupps.length === 0
+    ? `<div class="card">
+       <div class="card-title"><span class="ico">📅</span> Running Sekarang — ${qLbl}</div>
+       <div style="padding:1.5rem;text-align:center;color:var(--t3);font-size:12px">
+         <div style="font-size:32px;margin-bottom:8px">💊</div>
+         Belum ada supplement aktif. <button onclick="setTab(1)" class="btn btn-primary btn-sm" style="margin-left:6px">Buka Decision Matrix →</button>
+       </div>
+     </div>`
+    : `<div class="card">
+       <div class="card-title">
+         <span class="ico">📅</span>
+         <span>Running Sekarang — ${qLbl}</span>
+         <span style="margin-left:auto;font-size:10.5px;color:var(--t2);font-weight:600">${dayLbl} · ${activeSupps.length} supplement</span>
+       </div>
+       ${sortedTimings.map(t => {
+         const supps = timingGroups.get(t);
+         return `<div style="margin-bottom:12px">
+           <div style="font-size:10.5px;font-weight:800;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;padding-bottom:3px;border-bottom:1.5px solid var(--bdr)">⏱ ${t}</div>
+           ${supps.map(s => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bdr)">
+             <span class="lb ${CAT[s.category].cls}" style="font-size:8px;flex-shrink:0">${CAT[s.category].icon}</span>
+             <div style="flex:1;min-width:0">
+               <div style="font-size:12px;font-weight:700;color:var(--t0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${funcKey(s.name)}</div>
+               <div style="font-size:10px;color:var(--acc);font-weight:600">${s.brand || '—'}</div>
+             </div>
+             <div style="text-align:right;flex-shrink:0">
+               <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--t0)">${s.daily_servings || 1}× ${s.unit}</div>
+               <div style="font-size:9.5px;color:var(--t3)">${s.dose_per_serving || '—'} ${s.dose_unit || s.unit}</div>
+             </div>
+           </div>`).join('')}
+         </div>`;
+       }).join('')}
+       <div class="note" style="margin-top:8px">Schedule harian dari timing_note + daily_servings. Edit di Compounds tab.</div>
+     </div>`;
+
+  // ── Card 2: Biaya per Kategori
   const cc = {}; Object.keys(CAT).forEach(k => cc[k] = 0);
   scopeQuarters.forEach(q => {
     const sel = selFor(q);
@@ -244,15 +299,13 @@ export function pOverview(){
     ${catBars}
   </div>`;
 
-  // ── Card 2: Supplement Selected (sorted by score)
-  const sortedSelected = [...activeUnion].map(id => findSupp(id)).filter(Boolean)
-    .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
-  const maxEff = Math.max(...sortedSelected.map(s => s.efficiency_score||0), 1);
+  // ── Card 3: Supplement Selected (sorted by score)
+  const maxEff = Math.max(...activeSupps.map(s => s.efficiency_score||0), 1);
   const selectedCard = `<div class="card">
-    <div class="card-title"><span class="ico">🏆</span> Supplement Selected — ${qLbl} (${sortedSelected.length} aktif)</div>
-    ${sortedSelected.length === 0
+    <div class="card-title"><span class="ico">🏆</span> Supplement Selected — ${qLbl} (${activeSupps.length} aktif)</div>
+    ${activeSupps.length === 0
       ? '<div style="color:var(--t3);font-size:11px;padding:14px 0;text-align:center">Belum ada supplement dipilih. <button onclick="setTab(1)" class="btn btn-primary btn-sm" style="margin-left:8px">Buka Decision Matrix →</button></div>'
-      : sortedSelected.map((s,i) => {
+      : activeSupps.map((s,i) => {
           const eff = s.efficiency_score || 0;
           return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
             <div style="font-size:9px;color:var(--t3);width:14px;text-align:right">${i+1}</div>
@@ -270,7 +323,9 @@ export function pOverview(){
 
   return `
   ${renderQuarterRow()}
-  <div class="grid2">${biayaCard}${selectedCard}</div>`;
+  ${runningCard}
+  <div class="grid2" style="margin-bottom:12px">${biayaCard}${selectedCard}</div>
+  ${containerCardHTML()}`;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -386,8 +441,7 @@ export function pBudget(){
       ${emptyState('📋', 'Belum ada supplement di stage Deal untuk quarter ini.')}
       <div style="text-align:center;margin-top:8px"><button class="btn btn-primary" onclick="setTab(1)">Buka Decision Matrix →</button></div>
     </div>
-    ${restockCardHTML()}
-    ${containerCardHTML()}`;
+    ${restockCardHTML()}`;
   }
 
   // Current Budget selection (fallback ke deal kalau belum ada selection)
@@ -456,8 +510,7 @@ export function pBudget(){
       Klik <b>💾 Save Budget</b> untuk persist selection ke DB.
     </div>
   </div>
-  ${restockCardHTML()}
-  ${containerCardHTML()}`;
+  ${restockCardHTML()}`;
 }
 
 // ════════════════════════════════════════════════════════════

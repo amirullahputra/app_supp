@@ -1,18 +1,20 @@
 // State container + cost utilities — single source of truth for runtime data.
-import { SUPPLEMENTS, QUARTERS } from './data.js?v=7';
+import { SUPPLEMENTS, QUARTERS, VISIBLE_QIDS } from './data.js?v=8';
 
 function defaultQuarter(){
   const today = new Date();
   const q = Math.floor(today.getMonth()/3) + 1;
   const cur = `Q${q}_${today.getFullYear()}`;
-  return QUARTERS.includes(cur) ? cur : 'Q3_2026';
+  // Kalau current quarter di VISIBLE list, pakai. Else fallback ke Q3_2026 (anchor protocol)
+  if(VISIBLE_QIDS.includes(cur)) return cur;
+  return VISIBLE_QIDS[0] || 'Q3_2026';
 }
 
 export let S = {
   user: null,
   tab: 0,                       // 0=Overview 1=DM 2=Budget 3=Compounds
-  quarter: defaultQuarter(),    // active quarter for DM/Budget view
-  viewAll: false,               // true = Grand Total mode (all quarters aggregated)
+  quarter: defaultQuarter(),    // active quarter for DM/Budget view (kalau viewAll=false)
+  viewAll: true,                // DEFAULT: Grand Total mode (aggregate 4Q overview)
   budCap: 1000000,              // monthly budget cap (Rp 1jt default)
   search: '',                   // global search (filter by name/brand)
   tierFilter: null,             // null = all, atau 'S'|'A'|'B'|'C'|'D'|'F'

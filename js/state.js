@@ -1,5 +1,5 @@
 // State container + cost utilities — single source of truth for runtime data.
-import { SUPPLEMENTS, QUARTERS } from './data.js?v=5';
+import { SUPPLEMENTS, QUARTERS } from './data.js?v=6';
 
 function defaultQuarter(){
   const today = new Date();
@@ -14,11 +14,34 @@ export let S = {
   quarter: defaultQuarter(),    // active quarter for DM/Budget view
   viewAll: false,               // true = Grand Total mode (all quarters aggregated)
   budCap: 1000000,              // monthly budget cap (Rp 1jt default)
+  search: '',                   // global search (filter by name/brand)
+  tierFilter: null,             // null = all, atau 'S'|'A'|'B'|'C'|'D'|'F'
   // Caches keyed by supplement_id / quarter_id
   inventoryBySupp: {},          // {supp_id: {qty_containers, qty_servings_remaining, min_threshold}}
   dmByQuarter: {},              // {qid: Map<supp_id, stage>}
   budSelByQuarter: {},          // {qid: Set<supp_id>} — final checkbox state
 };
+
+// Extract tier (S/A/B/C/D/F) dari notes field. Mostly notes start with "X tier ..."
+export function extractTier(notes){
+  if(!notes) return null;
+  const m = String(notes).match(/\b([SABCDF])\s+tier\b/);
+  return m ? m[1].toUpperCase() : null;
+}
+
+// Apply S.search + S.tierFilter ke supplement list (Compounds + DM Library)
+export function applyFilters(arr){
+  const q = (S.search||'').trim().toLowerCase();
+  const tier = S.tierFilter;
+  return arr.filter(s => {
+    if(tier && extractTier(s.notes) !== tier) return false;
+    if(q){
+      const hay = `${s.name||''} ${s.brand||''} ${s.notes||''}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
 
 // Init empty DM map for all quarters (called after load)
 export function initDMMaps(){

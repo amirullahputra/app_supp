@@ -1,11 +1,12 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=5';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=6';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
   inventoryStatus, daysToEmpty,
-  scoreCol, scoreLabel
-} from './state.js?v=5';
+  scoreCol, scoreLabel,
+  extractTier, applyFilters
+} from './state.js?v=6';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -21,6 +22,32 @@ function catBadge(cat){
 }
 
 function findSupp(id){ return SUPPLEMENTS.find(s => s.id === id); }
+
+// Tier badge color
+function tierBadge(notes){
+  const t = extractTier(notes);
+  if(!t) return '';
+  const col = t === 'S' ? 'var(--vit)' : t === 'A' ? 'var(--pro)' : t === 'B' ? 'var(--cre)' : t === 'C' ? 'var(--t2)' : 'var(--warn)';
+  return `<span class="tier-bdg" style="background:${col};color:#fff">${t}</span>`;
+}
+
+// Reusable search + tier filter UI bar
+const TIERS = ['S','A','B','C','D','F'];
+function filterBar(){
+  const t = S.tierFilter;
+  const chips = ['ALL', ...TIERS].map(x => {
+    const val = x === 'ALL' ? null : x;
+    const active = (t === val) ? 'act' : '';
+    const lbl = x === 'ALL' ? 'All' : `${x}`;
+    return `<button class="tier-chip ${active}" onclick="setTierFilter(${val?`'${val}'`:'null'})" title="${x === 'ALL' ? 'All tiers' : x+' tier'}">${lbl}</button>`;
+  }).join('');
+  return `<div class="filter-bar">
+    <input type="search" class="input" placeholder="🔍 Cari name/brand/notes..." value="${S.search||''}"
+      oninput="setSearch(this.value)" style="max-width:280px">
+    <div class="tier-chips">${chips}</div>
+    ${(S.search || S.tierFilter) ? `<button class="btn btn-sm" onclick="clearFilters()" style="margin-left:auto">✕ Clear</button>` : ''}
+  </div>`;
+}
 
 // ── QUARTER ROW (5 cards: Grand Total + 4 quarters) ──
 // Render at top of EVERY tab, mirror pep_fl pattern.
@@ -89,22 +116,29 @@ export function pOverview(){
   const dealt = new Set();
   scopeQuarters.forEach(q => selFor(q).forEach(id => dealt.add(id)));
 
-  // ── Card 1: Restock Alert
-  const needRestock = SUPPLEMENTS.filter(s => inventoryStatus(s) !== 'ok');
-  const restockCard = needRestock.length === 0
-    ? `<div class="card"><div class="card-title"><span class="ico">✅</span> Restock Status</div>
-       <div style="padding:14px 0;color:var(--vit);font-weight:700">Semua stock aman ✓</div></div>`
-    : `<div class="card"><div class="card-title"><span class="ico">⚠️</span> Restock Alert · ${needRestock.length}</div>
-       ${needRestock.slice(0,6).map(s => {
+  // ── Card 1: Restock Alert — scope ke supplement yang AKTIF (di-checkbox Budget)
+  // di scope quarter. Kalau ga ada budget, fallback ke DM 'deal' (selFor handles).
+  const activeUnion = new Set();
+  scopeQuarters.forEach(q => selFor(q).forEach(id => activeUnion.add(id)));
+  const needRestock = SUPPLEMENTS.filter(s => activeUnion.has(s.id) && inventoryStatus(s) !== 'ok');
+  const restockCard = activeUnion.size === 0
+    ? `<div class="card"><div class="card-title"><span class="ico">📋</span> Restock Status</div>
+       <div style="padding:14px 0;color:var(--t3);font-size:12px">Belum ada supplement aktif di quarter ini. Buka <button onclick="setTab(1)" class="btn btn-sm btn-primary" style="margin-left:6px">Decision Matrix</button> untuk aktivasi.</div></div>`
+    : needRestock.length === 0
+    ? `<div class="card"><div class="card-title"><span class="ico">✅</span> Restock Status · ${activeUnion.size} active</div>
+       <div style="padding:14px 0;color:var(--vit);font-weight:700">Semua stock supplement aktif aman ✓</div></div>`
+    : `<div class="card"><div class="card-title"><span class="ico">⚠️</span> Restock Alert · ${needRestock.length}/${activeUnion.size} active</div>
+       ${needRestock.slice(0,8).map(s => {
          const inv = S.inventoryBySupp[s.id];
          const qty = inv?.qty_containers || 0;
          const dte = daysToEmpty(s);
          return `<div class="daily-row">
            <div class="name">${catBadge(s.category)} ${s.name}</div>
            <div class="dose">${qty} botol · ${dte!==null ? dte+'h lagi' : '—'}</div>
-           <div class="actions"><button class="btn btn-sm btn-primary" onclick="setTab(3)">Edit →</button></div>
+           <div class="actions"><button class="btn btn-sm btn-primary" onclick="openInvModal(${s.id})">Stok →</button></div>
          </div>`;
        }).join('')}
+       <div class="note" style="margin-top:8px">Scope: supplement yang ke-centang di Budget Filter (atau Active di DM kalau Budget belum di-set).</div>
        </div>`;
 
   // ── Card 2: Biaya per Kategori
@@ -213,8 +247,10 @@ export function pDM(){
   const activeIds = new Set();
   dmMap.forEach((stage, id) => { if(stage === 'deal') activeIds.add(id); });
 
-  const library = SUPPLEMENTS.filter(s => !activeIds.has(s.id))
+  // Library = SUPPLEMENTS - active, apply search/tier filter
+  const libraryAll = SUPPLEMENTS.filter(s => !activeIds.has(s.id))
     .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
+  const library = applyFilters(libraryAll);
   const active = SUPPLEMENTS.filter(s => activeIds.has(s.id))
     .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
 
@@ -226,8 +262,10 @@ export function pDM(){
       <div class="dm-card-row">
         <span class="lb ${CAT[s.category].cls}" style="font-size:8px">${CAT[s.category].icon}</span>
         <div class="dm-card-name">${s.name}</div>
+        ${tierBadge(s.notes)}
         <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:${scoreCol(eff)}">${eff}</span>
       </div>
+      ${s.brand ? `<div class="dm-card-brand">${s.brand}</div>` : ''}
       <div class="dm-card-actions">
         ${sourceZone === 'library'
           ? `<button class="dm-mvbtn dm-mvbtn-active" onclick="dmMove(${s.id}, 'deal')" title="Aktifkan">✅ Aktifkan</button>`
@@ -240,10 +278,10 @@ export function pDM(){
       ondragover="event.preventDefault(); this.classList.add('drag-over')"
       ondragleave="this.classList.remove('drag-over')"
       ondrop="dmDrop(event, 'library')">
-    <div class="dm-col-hdr">📚 Library · ${library.length} <span style="font-weight:400;color:var(--t3);font-size:10px;margin-left:4px">(belum aktif)</span></div>
+    <div class="dm-col-hdr">📚 Library · ${library.length}${library.length !== libraryAll.length ? ` <span style="font-weight:400;color:var(--t3);font-size:10px">(filtered dari ${libraryAll.length})</span>` : ''}</div>
     <div class="dm-col-body">
       ${library.length === 0
-        ? `<div style="color:var(--t3);font-size:10px;padding:10px 0;text-align:center">Semua supplement aktif</div>`
+        ? `<div style="color:var(--t3);font-size:11px;padding:14px 0;text-align:center">${libraryAll.length === 0 ? 'Semua supplement aktif' : 'Tidak ada match dengan filter'}</div>`
         : library.map(s => renderCard(s, 'library')).join('')}
     </div>
   </div>`;
@@ -265,15 +303,16 @@ export function pDM(){
     <div class="card-title">
       <span class="ico">🎯</span>
       <span>Decision Matrix — ${qLbl}</span>
-      <span style="margin-left:auto;font-size:11px;color:var(--t2)">${active.length} active · ${library.length} library</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--t2)">${active.length} active · ${libraryAll.length} library</span>
     </div>
+    ${filterBar()}
     <div class="dm-grid-2">
       ${libCol}
       ${activeCol}
     </div>
     <div class="note" style="margin-top:10px">
       <b>Cara pakai:</b> drag supplement dari Library ke Active (atau sebaliknya). Bisa juga klik tombol <b>✅ Aktifkan</b> / <b>↩ Drop</b>.
-      Status <b>Active</b> jadi default ON di Budget Filter quarter ini.
+      Search/filter cuma effect ke Library. <b>Active</b> jadi default ON di Budget Filter.
     </div>
   </div>`;
 }
@@ -374,33 +413,27 @@ export function pBudget(){
 }
 
 // ════════════════════════════════════════════════════════════
-// TAB 3 — COMPOUNDS (master list, ex-Catalog + Stock column)
+// TAB 3 — COMPOUNDS (master list, no Stock col — stock di Overview)
 // ════════════════════════════════════════════════════════════
 export function pCompounds(){
   if(!SUPPLEMENTS.length) return `<div class="card">${emptyState('⏳', 'Loading catalog...')}</div>`;
 
-  const rows = SUPPLEMENTS.map(s => {
-    const inv = S.inventoryBySupp[s.id];
-    const stk = inv?.qty_containers || 0;
-    const status = inventoryStatus(s);
-    const statusBadge = status==='empty' ? `<span class="badge-restock">⚠ Kosong</span>`
-      : status==='restock' ? `<span class="badge-restock">⚠ Restock</span>`
-      : `<span class="badge-ok">✓ OK</span>`;
+  const filtered = applyFilters(SUPPLEMENTS);
+  const rows = filtered.map(s => {
     const doseUnit = s.dose_unit || s.unit;
     const score = s.efficiency_score;
     const sc = scoreCol(score);
     return `<tr>
       <td class="c"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:${sc}">${score ?? '—'}</div><div style="font-size:9px;color:var(--t3)">${scoreLabel(score)}</div></td>
+      <td class="c">${tierBadge(s.notes)}</td>
       <td>${catBadge(s.category)}</td>
       <td><div style="font-weight:700;color:var(--t0)">${s.name}</div>
-          <div style="font-size:10px;color:var(--t3)">${s.brand || '—'}</div></td>
+          <div style="font-size:10px;color:var(--acc);font-weight:600">${s.brand || '—'}</div></td>
       <td class="c"><span class="mono">${s.dose_per_serving || '—'} ${doseUnit}</span><div style="font-size:9px;color:var(--t3)">${s.daily_servings||1}/hari</div></td>
       <td class="c"><span class="mono">${s.servings_per_container || '—'}</span><div style="font-size:9px;color:var(--t3)">${s.unit}/cont</div></td>
       <td class="r"><span class="mono">${rpM(s.price_idr || 0)}</span></td>
-      <td class="c"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800">${stk}</div>${statusBadge}</td>
       <td class="c">
-        <button class="btn btn-sm" onclick="openSuppEdit(${s.id})">✎</button>
-        <button class="btn btn-sm" onclick="openInvModal(${s.id})">📦</button>
+        <button class="btn btn-sm" onclick="openSuppEdit(${s.id})">✎ Edit</button>
       </td>
     </tr>`;
   }).join('');
@@ -409,20 +442,21 @@ export function pCompounds(){
   <div class="card">
     <div class="card-title">
       <span class="ico">📚</span>
-      <span>Compounds — ${SUPPLEMENTS.length} supplement · sorted by score</span>
+      <span>Compounds — ${filtered.length}/${SUPPLEMENTS.length} supplement · sorted by score</span>
       <span style="margin-left:auto"><button class="btn btn-primary btn-sm" onclick="openSuppEdit(null)">+ Tambah Supplement</button></span>
     </div>
+    ${filterBar()}
     <table>
       <thead><tr>
-        <th class="c">Score</th><th>Kategori</th><th>Name</th>
+        <th class="c">Score</th><th class="c">Tier</th><th>Kategori</th><th>Name</th>
         <th class="c">Dose</th><th class="c">Cont</th>
-        <th class="r">Harga</th><th class="c">Stock</th><th class="c">Action</th>
+        <th class="r">Harga</th><th class="c">Action</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="note" style="margin-top:10px">
-      <b>Score 0-100</b> = utility × evidence × value-for-money. 85+ Strong · 65-84 Proven · 45-64 Situational · &lt;45 Weak.
-      Catalog shared, stock per user. ✎ edit master · 📦 update stok.
+      <b>Score 0-100</b> = utility × evidence × value-for-money. <b>Tier</b> S=foundational A=proven B=useful C=situational D=optional F=DROP.
+      Stock management dipindah ke Overview tab. Catalog shared antar user.
     </div>
   </div>`;
 }

@@ -11,8 +11,8 @@ function showInitError(label, err){
 window.addEventListener('error', (e) => showInitError('Script Error', e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => showInitError('Promise Rejection', e.reason));
 
-import { S, initDMMaps } from './state.js?v=4';
-import { SUPPLEMENTS, CAT, QUARTERS } from './data.js?v=4';
+import { S, initDMMaps } from './state.js?v=5';
+import { SUPPLEMENTS, CAT, QUARTERS } from './data.js?v=5';
 import {
   loadSupplements, saveSupplementEdit, createSupplement,
   loadInventory, saveInventory,
@@ -21,10 +21,10 @@ import {
   loadInitial,
   openAuthModal, closeAuthModal, doLogin, doLogout, onAuthBtnClick,
   updateAuthUI, setupAuthListener, supa
-} from './supabase.js?v=4';
-import * as panelFns from './panels.js?v=4';
-import * as supaFns from './supabase.js?v=4';
-import * as stateModule from './state.js?v=4';
+} from './supabase.js?v=5';
+import * as panelFns from './panels.js?v=5';
+import * as supaFns from './supabase.js?v=5';
+import * as stateModule from './state.js?v=5';
 
 Object.assign(window, panelFns, supaFns, stateModule, { S, SUPPLEMENTS, CAT });
 

@@ -10,6 +10,8 @@
   --pwo:#EF4444;--pwo-bg:#FEF2F2;
   --omg:#06B6D4;--omg-bg:#ECFEFF;
   --min:#8B5CF6;--min-bg:#F5F3FF;
+  --adp:#84CC16;--adp-bg:#F7FEE7;
+  --prf:#0891B2;--prf-bg:#ECFEFF;
   --oth:#6B7AA0;--oth-bg:#F0F2F8;
   --warn:#EF4444;--warn-bg:#FEF2F2;--warn-bdr:rgba(239,68,68,.25);
   --ok:#10B981;
@@ -71,6 +73,8 @@ textarea.input{resize:vertical;min-height:60px}
 .lb-preworkout{background:var(--pwo-bg);color:var(--pwo)}
 .lb-omega{background:var(--omg-bg);color:var(--omg)}
 .lb-mineral{background:var(--min-bg);color:var(--min)}
+.lb-adaptogen{background:var(--adp-bg);color:var(--adp)}
+.lb-performance{background:var(--prf-bg);color:var(--prf)}
 .lb-other{background:var(--oth-bg);color:var(--oth)}
 
 /* Table */

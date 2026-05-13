@@ -1,5 +1,5 @@
 // State container + cost utilities — single source of truth for runtime data.
-import { SUPPLEMENTS, QUARTERS } from './data.js?v=4';
+import { SUPPLEMENTS, QUARTERS } from './data.js?v=5';
 
 function defaultQuarter(){
   const today = new Date();

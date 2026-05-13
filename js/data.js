@@ -1,14 +1,16 @@
 // Static enums & constants — no DB I/O.
 
 export const CAT = {
-  vitamin:    { label:'Vitamin',     icon:'💊', cls:'lb-vitamin' },
-  protein:    { label:'Protein',     icon:'🥛', cls:'lb-protein' },
-  creatine:   { label:'Creatine',    icon:'💪', cls:'lb-creatine' },
-  eaa:        { label:'EAA',         icon:'🧬', cls:'lb-eaa' },
-  preworkout: { label:'Pre-workout', icon:'⚡', cls:'lb-preworkout' },
-  omega:      { label:'Omega/Fish',  icon:'🐟', cls:'lb-omega' },
-  mineral:    { label:'Mineral',     icon:'🪨', cls:'lb-mineral' },
-  other:      { label:'Other',       icon:'📦', cls:'lb-other' },
+  vitamin:     { label:'Vitamin',     icon:'💊', cls:'lb-vitamin' },
+  protein:     { label:'Protein',     icon:'🥛', cls:'lb-protein' },
+  creatine:    { label:'Creatine',    icon:'💪', cls:'lb-creatine' },
+  eaa:         { label:'EAA',         icon:'🧬', cls:'lb-eaa' },
+  preworkout:  { label:'Pre-workout', icon:'⚡', cls:'lb-preworkout' },
+  omega:       { label:'Omega/Fish',  icon:'🐟', cls:'lb-omega' },
+  mineral:     { label:'Mineral',     icon:'🪨', cls:'lb-mineral' },
+  adaptogen:   { label:'Adaptogen',   icon:'🌿', cls:'lb-adaptogen' },
+  performance: { label:'Performance', icon:'🚀', cls:'lb-performance' },
+  other:       { label:'Other',       icon:'📦', cls:'lb-other' },
 };
 
 // Mirror pep_fl quarters — same 12 quarters Q1 2026 - Q4 2028

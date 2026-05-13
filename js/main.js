@@ -1,6 +1,5 @@
-// Entry point — error boundary, tab routing, modal handlers, init flow.
+// Entry — error boundary, tab routing, modal + DM/Budget handlers, init flow.
 
-// Global error boundary (banner red kalau ada throw/unhandled rejection)
 function showInitError(label, err){
   const root = document.getElementById('panels-root');
   if(!root) return;
@@ -12,36 +11,50 @@ function showInitError(label, err){
 window.addEventListener('error', (e) => showInitError('Script Error', e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => showInitError('Promise Rejection', e.reason));
 
-import { S } from './state.js?v=2';
-import { SUPPLEMENTS, CAT, TIMING_OPTS } from './data.js?v=2';
+import { S, initDMMaps } from './state.js?v=3';
+import { SUPPLEMENTS, CAT, QUARTERS } from './data.js?v=3';
 import {
   loadSupplements, saveSupplementEdit, createSupplement,
   loadInventory, saveInventory,
-  loadLog, addLogEntry, deleteLogEntry,
-  loadStacks, loadInitial,
+  loadAllDMStages, setDMStage, removeDMStage,
+  loadAllBudgets, saveBudget,
+  loadInitial,
   openAuthModal, closeAuthModal, doLogin, doLogout, onAuthBtnClick,
   updateAuthUI, setupAuthListener, supa
-} from './supabase.js?v=2';
-import * as panelFns from './panels.js?v=2';
-import * as supaFns from './supabase.js?v=2';
-import * as stateModule from './state.js?v=2';
+} from './supabase.js?v=3';
+import * as panelFns from './panels.js?v=3';
+import * as supaFns from './supabase.js?v=3';
+import * as stateModule from './state.js?v=3';
 
-// Expose to window for inline onclick handlers
 Object.assign(window, panelFns, supaFns, stateModule, { S, SUPPLEMENTS, CAT });
 
 // ── TAB DEFS ──
 const TABS = [
-  { id: 0, label: '📚 Catalog',   fn: 'pCatalog'   },
-  { id: 1, label: '📦 Inventory', fn: 'pInventory' },
-  { id: 2, label: '📝 Daily Log', fn: 'pDailyLog'  },
-  { id: 3, label: '🎯 Stacks',    fn: 'pStacks'    },
-  { id: 4, label: '📊 Overview',  fn: 'pOverview'  },
+  { id: 0, label: '📊 Overview',       fn: 'pOverview'  },
+  { id: 1, label: '🎯 Decision Matrix', fn: 'pDM'        },
+  { id: 2, label: '💰 Budget',          fn: 'pBudget'    },
+  { id: 3, label: '📚 Compounds',       fn: 'pCompounds' },
 ];
 
 window.setTab = function(idx){
   S.tab = idx;
   renderTabs();
   renderPanels();
+};
+
+window.setQuarter = function(qid){
+  S.quarter = qid;
+  S.viewAll = false;
+  renderPanels();
+};
+
+window.setViewAll = function(){
+  S.viewAll = !S.viewAll;
+  renderPanels();
+};
+
+window.setBudCap = function(v){
+  S.budCap = parseInt(v) || 1000000;
 };
 
 function renderTabs(){
@@ -61,22 +74,63 @@ function renderPanels(){
 }
 window.renderPanels = renderPanels;
 
+// ── DECISION MATRIX HANDLERS ──
+window.dmMove = async function(suppId, toStage){
+  if(!S.user){ alert('Login dulu'); return; }
+  try {
+    await setDMStage(S.quarter, suppId, toStage);
+    renderPanels();
+  } catch(e){ alert('Gagal save: '+(e.message||e)); }
+};
+
+window.dmRemove = async function(suppId){
+  if(!S.user) return;
+  try {
+    await removeDMStage(S.quarter, suppId);
+    renderPanels();
+  } catch(e){ alert('Gagal remove: '+(e.message||e)); }
+};
+
+// ── BUDGET HANDLERS ──
+window.toggleBudSel = function(suppId){
+  const qid = S.quarter;
+  if(!S.budSelByQuarter[qid]){
+    // Init dari deal supplements kalau belum ada selection
+    S.budSelByQuarter[qid] = new Set();
+    const dmMap = S.dmByQuarter[qid] || new Map();
+    dmMap.forEach((stage, id) => { if(stage === 'deal') S.budSelByQuarter[qid].add(id); });
+  }
+  const sel = S.budSelByQuarter[qid];
+  if(sel.has(suppId)) sel.delete(suppId);
+  else sel.add(suppId);
+  renderPanels();
+};
+
+window.saveBudgetCurrent = async function(){
+  const qid = S.quarter;
+  const sel = S.budSelByQuarter[qid] || new Set();
+  try {
+    await saveBudget(qid, sel, S.budCap);
+  } catch(e){ alert('Gagal save: '+(e.message||e)); }
+};
+
 // ── MODAL: SUPPLEMENT EDIT ──
 window.openSuppEdit = function(suppId){
   const s = suppId ? SUPPLEMENTS.find(x => x.id === suppId) : null;
   document.getElementById('supp-edit-title').textContent = s ? 'Edit Supplement' : 'Tambah Supplement';
   document.getElementById('supp-edit-id').value = suppId || '';
-  document.getElementById('se-name').value = s?.name || '';
-  document.getElementById('se-cat').value = s?.category || 'vitamin';
-  document.getElementById('se-brand').value = s?.brand || '';
-  document.getElementById('se-unit').value = s?.unit || 'tablet';
-  document.getElementById('se-dose').value = s?.dose_per_serving || '';
+  document.getElementById('se-name').value     = s?.name || '';
+  document.getElementById('se-cat').value      = s?.category || 'vitamin';
+  document.getElementById('se-brand').value    = s?.brand || '';
+  document.getElementById('se-unit').value     = s?.unit || 'tablet';
+  document.getElementById('se-dose').value     = s?.dose_per_serving || '';
   document.getElementById('se-doseunit').value = s?.dose_unit || 'mg';
   document.getElementById('se-servings').value = s?.servings_per_container || '';
-  document.getElementById('se-price').value = s?.price_idr || '';
-  document.getElementById('se-score').value = s?.efficiency_score ?? '';
-  document.getElementById('se-timing').value = s?.timing_note || '';
-  document.getElementById('se-notes').value = s?.notes || '';
+  document.getElementById('se-daily').value    = s?.daily_servings ?? 1;
+  document.getElementById('se-price').value    = s?.price_idr || '';
+  document.getElementById('se-score').value    = s?.efficiency_score ?? '';
+  document.getElementById('se-timing').value   = s?.timing_note || '';
+  document.getElementById('se-notes').value    = s?.notes || '';
   document.getElementById('supp-edit-err').textContent = '';
   document.getElementById('supp-edit-modal').classList.add('open');
 };
@@ -97,6 +151,7 @@ window.saveSuppEdit = async function(){
     dose_per_serving: parseFloat(document.getElementById('se-dose').value) || null,
     dose_unit: document.getElementById('se-doseunit').value,
     servings_per_container: parseInt(document.getElementById('se-servings').value) || null,
+    daily_servings: parseFloat(document.getElementById('se-daily').value) || 1,
     price_idr: parseInt(document.getElementById('se-price').value) || null,
     efficiency_score: parseInt(document.getElementById('se-score').value) || null,
     timing_note: document.getElementById('se-timing').value.trim() || null,
@@ -140,62 +195,18 @@ window.saveInv = async function(){
   } catch(e){ alert('Gagal save: ' + (e.message || e)); }
 };
 
-// ── MODAL: LOG ENTRY ──
-window.openLogModal = function(suppId){
-  const s = SUPPLEMENTS.find(x => x.id === suppId);
-  if(!s) return;
-  document.getElementById('log-modal-title').textContent = 'Catat — ' + s.name;
-  document.getElementById('log-supp-id').value = suppId;
-  document.getElementById('log-qty').value = 1;
-  // datetime-local needs format YYYY-MM-DDTHH:MM
-  const now = new Date();
-  const iso = new Date(now.getTime() - now.getTimezoneOffset()*60000).toISOString().slice(0,16);
-  document.getElementById('log-when').value = iso;
-  document.getElementById('log-notes').value = '';
-  document.getElementById('log-modal').classList.add('open');
-};
-
-window.closeLogModal = function(){
-  document.getElementById('log-modal').classList.remove('open');
-};
-
-window.saveLog = async function(){
-  const id = Number(document.getElementById('log-supp-id').value);
-  const qty = parseFloat(document.getElementById('log-qty').value) || 1;
-  const whenLocal = document.getElementById('log-when').value;
-  const notes = document.getElementById('log-notes').value.trim();
-  // datetime-local interpreted as local — convert to ISO UTC
-  const consumedAt = whenLocal ? new Date(whenLocal).toISOString() : null;
-  try {
-    await addLogEntry(id, qty, consumedAt, notes);
-    window.closeLogModal();
-    renderPanels();
-  } catch(e){ alert('Gagal catat: ' + (e.message || e)); }
-};
-
-window.deleteLog = async function(id){
-  if(!confirm('Hapus log entry ini?')) return;
-  try {
-    await deleteLogEntry(id);
-    renderPanels();
-  } catch(e){ alert('Gagal hapus: ' + (e.message || e)); }
-};
-
 // ── BOOTSTRAP ──
 async function init(){
+  initDMMaps();
   renderTabs();
   renderPanels();
-
-  // Try load catalog (public) immediately
   try {
     await loadSupplements();
-    Object.assign(window, { SUPPLEMENTS }); // refresh after load
+    Object.assign(window, { SUPPLEMENTS });
     renderPanels();
   } catch(e){
     showInitError('Load Catalog Failed', e);
   }
-
-  // Auth listener — reload user tables saat login/logout
   setupAuthListener(async (event, session) => {
     if(session?.user){
       try { await loadInitial(); } catch(_){}

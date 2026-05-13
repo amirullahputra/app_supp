@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -17,7 +17,7 @@
         <div class="topbar-ico">💊</div>
         <div>
           <div class="topbar-title">Supplement Tracker</div>
-          <div class="topbar-sub">Vitamin · Protein · Daily Stack</div>
+          <div class="topbar-sub">Vitamin · Protein · Stack Per Quarter</div>
         </div>
       </div>
       <div class="topbar-auth">
@@ -47,12 +47,12 @@
 
   <!-- Supplement Edit Modal -->
   <div id="supp-edit-modal" class="modal-overlay" onclick="if(event.target===this)closeSuppEdit()">
-    <div class="modal-box" style="max-width:520px">
+    <div class="modal-box" style="max-width:560px">
       <button class="modal-close" onclick="closeSuppEdit()">✕</button>
       <div class="modal-title" id="supp-edit-title">Edit Supplement</div>
       <input type="hidden" id="supp-edit-id">
       <div class="form-grid">
-        <div class="form-row"><label>Name</label><input id="se-name" class="input"></div>
+        <div class="form-row form-row-wide"><label>Name</label><input id="se-name" class="input"></div>
         <div class="form-row"><label>Category</label>
           <select id="se-cat" class="input">
             <option value="vitamin">Vitamin</option>
@@ -87,9 +87,10 @@
             <option value="scoop">scoop</option>
           </select>
         </div>
-        <div class="form-row"><label>Servings/container</label><input id="se-servings" type="number" class="input"></div>
+        <div class="form-row"><label>Servings / container</label><input id="se-servings" type="number" class="input"></div>
+        <div class="form-row"><label>Daily servings</label><input id="se-daily" type="number" step="0.5" value="1" class="input" title="Berapa serving per hari (1 scoop/day, 2 tablet/day, dst)"></div>
         <div class="form-row"><label>Price (IDR)</label><input id="se-price" type="number" class="input"></div>
-        <div class="form-row"><label>Score (0-100)</label><input id="se-score" type="number" min="0" max="100" class="input" placeholder="e.g. 85"></div>
+        <div class="form-row"><label>Score (0-100)</label><input id="se-score" type="number" min="0" max="100" class="input"></div>
         <div class="form-row form-row-wide"><label>Timing</label><input id="se-timing" class="input" placeholder="e.g. Post-workout, Pagi"></div>
         <div class="form-row form-row-wide"><label>Notes</label><textarea id="se-notes" class="input" rows="2"></textarea></div>
       </div>
@@ -118,27 +119,9 @@
     </div>
   </div>
 
-  <!-- Log Modal -->
-  <div id="log-modal" class="modal-overlay" onclick="if(event.target===this)closeLogModal()">
-    <div class="modal-box">
-      <button class="modal-close" onclick="closeLogModal()">✕</button>
-      <div class="modal-title" id="log-modal-title">Catat Konsumsi</div>
-      <input type="hidden" id="log-supp-id">
-      <div class="form-grid">
-        <div class="form-row"><label>Qty serving</label><input id="log-qty" type="number" step="0.5" value="1" class="input"></div>
-        <div class="form-row"><label>Tanggal/jam</label><input id="log-when" type="datetime-local" class="input"></div>
-        <div class="form-row form-row-wide"><label>Notes</label><input id="log-notes" class="input" placeholder="opsional"></div>
-      </div>
-      <div class="modal-actions">
-        <button onclick="closeLogModal()" class="btn btn-ghost">Batal</button>
-        <button onclick="saveLog()" class="btn btn-primary">Catat</button>
-      </div>
-    </div>
-  </div>
-
   <div id="save-ind" class="save-ind">✓ Tersimpan</div>
-  <div id="app-version" class="app-version">v=2</div>
+  <div id="app-version" class="app-version">v=3</div>
 
-  <script type="module" src="js/main.js?v=2"></script>
+  <script type="module" src="js/main.js?v=3"></script>
 </body>
 </html>

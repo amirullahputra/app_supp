@@ -1,8 +1,8 @@
 // Supabase config + auth + DB layer.
 // Pattern: bypass GoTrueClient (navigator.locks hang di Chrome incognito) dengan
-// authFetch + JWT cache. Lihat pep_fl/js/supabase.js untuk root context.
-import { _setSupplements, SUPPLEMENTS } from './data.js?v=2';
-import { S } from './state.js?v=2';
+// authFetch + JWT cache. Mirror pep_fl/js/supabase.js.
+import { _setSupplements, SUPPLEMENTS, QUARTERS } from './data.js?v=3';
+import { S, initDMMaps } from './state.js?v=3';
 
 const SUPA_URL = 'https://guhhoqpvwzzrlwgfugsb.supabase.co';
 const SUPA_KEY = 'sb_publishable_yu8KTS5mId2hV7kVjScvZA_-geYqKHv';
@@ -19,9 +19,7 @@ async function restFetch(table, query=''){
   return res.json();
 }
 
-// JWT cache (set via onAuthStateChange callback, fallback localStorage)
 let _jwt = null;
-
 function readJwtFromStorage(){
   try {
     const projectRef = SUPA_URL.match(/https:\/\/([^.]+)/)?.[1];
@@ -53,7 +51,6 @@ async function authFetch(table, query='', opts={}){
   return text ? JSON.parse(text) : null;
 }
 
-// ── Save indicator ──
 function showSaveInd(){
   const el = document.getElementById('save-ind');
   if(!el) return;
@@ -72,7 +69,6 @@ export async function loadSupplements(){
 }
 
 export async function saveSupplementEdit(id, updates){
-  // Returns array of updated rows; empty = RLS rejection.
   const data = await authFetch('supplements', `id=eq.${id}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=representation' },
@@ -137,71 +133,84 @@ export async function saveInventory(suppId, qtyContainers, minThreshold){
   showSaveInd();
 }
 
-// ── DAILY LOG ──
-export async function loadLog(){
-  S.logToday = [];
-  S.logRecent = [];
+// ── DECISION MATRIX (mirror pep_fl loadDMStages + setDMStage) ──
+// Load ALL DM stages user di semua quarter → S.dmByQuarter[qid] = Map<supp_id, stage>
+export async function loadAllDMStages(){
+  initDMMaps();
   if(!S.user) return;
-  // Recent 30 days
-  const sinceISO = new Date(Date.now() - 30*86400000).toISOString();
-  const data = await authFetch('supp_consumption_log',
-    `select=*&user_id=eq.${S.user.id}&consumed_at=gte.${sinceISO}&order=consumed_at.desc`);
-  S.logRecent = data || [];
-  S.logToday = (data||[]).filter(r => {
-    const d = new Date(r.consumed_at);
-    return d.toDateString() === new Date().toDateString();
+  const data = await authFetch('supp_dm_stages',
+    `select=quarter_id,supplement_id,stage,sort_order&user_id=eq.${S.user.id}`);
+  (data||[]).forEach(r => {
+    if(!S.dmByQuarter[r.quarter_id]) S.dmByQuarter[r.quarter_id] = new Map();
+    S.dmByQuarter[r.quarter_id].set(r.supplement_id, r.stage);
   });
 }
 
-export async function addLogEntry(suppId, qtyServings, consumedAt, notes){
-  if(!S.user){ alert('Login dulu'); return; }
-  const data = await authFetch('supp_consumption_log', '', {
+// Set/upsert stage untuk 1 supplement di 1 quarter
+export async function setDMStage(qid, suppId, stage, sortOrder=100){
+  if(!S.user) throw new Error('Login dulu');
+  if(!['watchlist','tentatif','deal'].includes(stage)){
+    throw new Error('Invalid stage: '+stage);
+  }
+  await authFetch('supp_dm_stages', 'on_conflict=user_id,quarter_id,supplement_id', {
     method: 'POST',
-    headers: { Prefer: 'return=representation' },
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({
       user_id: S.user.id,
+      quarter_id: qid,
       supplement_id: suppId,
-      qty_servings: qtyServings,
-      consumed_at: consumedAt || new Date().toISOString(),
-      notes: notes || null,
+      stage,
+      sort_order: sortOrder,
+      updated_at: new Date().toISOString()
     })
   });
-  const row = Array.isArray(data) ? data[0] : data;
-  if(row){
-    S.logRecent.unshift(row);
-    if(new Date(row.consumed_at).toDateString() === new Date().toDateString()){
-      S.logToday.unshift(row);
-    }
-  }
+  if(!S.dmByQuarter[qid]) S.dmByQuarter[qid] = new Map();
+  S.dmByQuarter[qid].set(suppId, stage);
   showSaveInd();
 }
 
-export async function deleteLogEntry(id){
+// Remove dari DM (drop balik ke library)
+export async function removeDMStage(qid, suppId){
   if(!S.user) return;
-  await authFetch('supp_consumption_log',
-    `id=eq.${id}&user_id=eq.${S.user.id}`,
+  await authFetch('supp_dm_stages',
+    `user_id=eq.${S.user.id}&quarter_id=eq.${qid}&supplement_id=eq.${suppId}`,
     { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
-  S.logToday = S.logToday.filter(r => r.id !== id);
-  S.logRecent = S.logRecent.filter(r => r.id !== id);
+  S.dmByQuarter[qid]?.delete(suppId);
   showSaveInd();
 }
 
-// ── STACKS ──
-export async function loadStacks(){
-  S.stacks = [];
-  S.stackItemsByStack = {};
+// ── BUDGET SELECTIONS (per-quarter checkbox state) ──
+// Load semua user budget selection → S.budSelByQuarter
+export async function loadAllBudgets(){
+  S.budSelByQuarter = {};
   if(!S.user) return;
-  const stacks = await authFetch('supp_stacks',
-    `select=*&user_id=eq.${S.user.id}&order=created_at.desc`);
-  S.stacks = stacks || [];
-  if(S.stacks.length === 0) return;
-  const ids = S.stacks.map(s => s.id).join(',');
-  const items = await authFetch('supp_stack_items',
-    `select=*&stack_id=in.(${ids})`);
-  (items||[]).forEach(it => {
-    if(!S.stackItemsByStack[it.stack_id]) S.stackItemsByStack[it.stack_id] = [];
-    S.stackItemsByStack[it.stack_id].push(it);
+  const data = await authFetch('supp_budget_selections',
+    `select=quarter_id,selected_supplement_ids,budget_cap_idr&user_id=eq.${S.user.id}`);
+  (data||[]).forEach(r => {
+    S.budSelByQuarter[r.quarter_id] = new Set(r.selected_supplement_ids || []);
+    // Pakai budget_cap dari quarter aktif sebagai default S.budCap
+    if(r.quarter_id === S.quarter && r.budget_cap_idr){
+      S.budCap = r.budget_cap_idr;
+    }
   });
+}
+
+// Save selection + budget cap untuk 1 quarter
+export async function saveBudget(qid, selectedIds, budgetCap){
+  if(!S.user) return;
+  await authFetch('supp_budget_selections', 'on_conflict=user_id,quarter_id', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({
+      user_id: S.user.id,
+      quarter_id: qid,
+      selected_supplement_ids: [...selectedIds],
+      budget_cap_idr: budgetCap,
+      updated_at: new Date().toISOString()
+    })
+  });
+  S.budSelByQuarter[qid] = new Set(selectedIds);
+  showSaveInd();
 }
 
 // ── AUTH ──
@@ -237,14 +246,12 @@ export async function doLogin(){
     const { data, error } = await supa.auth.signInWithPassword({ email, password });
     if(error) throw error;
     closeAuthModal();
-    // onAuthStateChange listener akan trigger reload & render.
   } catch(e){
     errEl.textContent = 'Login gagal: ' + (e.message || e);
   }
 }
 
 export function doLogout(){
-  // Manual: clear localStorage Supabase keys + reset state.
   try {
     Object.keys(localStorage).forEach(k => {
       if(k.startsWith('sb-')) localStorage.removeItem(k);
@@ -253,13 +260,11 @@ export function doLogout(){
   _jwt = null;
   S.user = null;
   S.inventoryBySupp = {};
-  S.logToday = [];
-  S.logRecent = [];
-  S.stacks = [];
-  S.stackItemsByStack = {};
+  S.dmByQuarter = {};
+  S.budSelByQuarter = {};
+  initDMMaps();
   updateAuthUI(null);
   window.renderPanels && window.renderPanels();
-  // Fire-and-forget — kalau supa.auth.signOut hang, skip.
   try { supa.auth.signOut(); } catch(_){}
 }
 
@@ -272,7 +277,6 @@ export function setupAuthListener(onAuthChange){
   });
 }
 
-// Timeout wrapper (avoid hang block)
 function withTimeout(promise, ms, label){
   return Promise.race([
     promise,
@@ -280,16 +284,13 @@ function withTimeout(promise, ms, label){
   ]);
 }
 
-// Initial data load — supplements (public) + user tables (if auth)
+// Initial data load
 export async function loadInitial(){
   await loadSupplements();
   if(!S.user) return;
   await Promise.allSettled([
     withTimeout(loadInventory(), 8000, 'inventory'),
-    withTimeout(loadLog(), 8000, 'log'),
-    withTimeout(loadStacks(), 8000, 'stacks'),
+    withTimeout(loadAllDMStages(), 8000, 'dm'),
+    withTimeout(loadAllBudgets(), 8000, 'budget'),
   ]);
 }
-
-// Re-export caches for window binding from main.js
-export { _jwt };

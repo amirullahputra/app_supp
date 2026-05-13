@@ -1,12 +1,12 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=8';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=9';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
   inventoryStatus, daysToEmpty,
   scoreCol, scoreLabel,
   extractTier, applyFilters
-} from './state.js?v=8';
+} from './state.js?v=9';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -88,7 +88,7 @@ export function renderQuarterRow(){
     const lbl = quarterLabel(s.qid);
     cards.push(`
       <div class="qcard ${active}" onclick="setQuarter('${s.qid}')">
-        <div class="qcard-title">${lbl}</div>
+        <div class="qcard-title">${lbl} ${active?'<span class="bdg-act">AKTIF</span>':''}</div>
         <div class="qcard-sub">${daysInQuarter(s.qid)} hari</div>
         <div class="qcard-stats">
           <div><div class="qstat-lbl">Supps</div><div class="qstat-val">${s.count}</div></div>

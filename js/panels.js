@@ -1,5 +1,5 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=12';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=13';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
@@ -7,7 +7,7 @@ import {
   scoreCol, scoreLabel,
   extractTier, applyFilters,
   funcKey
-} from './state.js?v=12';
+} from './state.js?v=13';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -222,12 +222,24 @@ export function pOverview(){
   const activeSupps = [...activeUnion].map(id => findSupp(id)).filter(Boolean)
     .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
 
-  // ── Card 1: Running Minggu Ini — group by timing_note
-  // Show: nama (funcKey), brand, daily dose, timing
+  // ── Card 1: Running Sekarang — group by timing_note
+  // Auto-dedupe by funcKey: kalau 2 brand variant aktif (mis. Creatine 300g + 1kg),
+  // tampil 1 row aja (yang score tertinggi). User ga perlu konsumsi 2× per hari.
   const today = new Date();
   const dayLbl = today.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-  const timingGroups = new Map(); // timing → [supp]
+  // Step 1: dedupe activeSupps by funcKey → pick representative (highest score)
+  const funcMap = new Map();
   activeSupps.forEach(s => {
+    const key = funcKey(s.name);
+    const existing = funcMap.get(key);
+    if(!existing || (s.efficiency_score||0) > (existing.efficiency_score||0)){
+      funcMap.set(key, s);
+    }
+  });
+  const dedupedSupps = [...funcMap.values()];
+  // Step 2: group by timing_note
+  const timingGroups = new Map();
+  dedupedSupps.forEach(s => {
     const t = (s.timing_note || 'Bebas').trim();
     if(!timingGroups.has(t)) timingGroups.set(t, []);
     timingGroups.get(t).push(s);
@@ -240,6 +252,9 @@ export function pOverview(){
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
+  const dedupedCount = dedupedSupps.length;
+  const totalCount = activeSupps.length;
+  const dedupeNote = dedupedCount < totalCount ? ` <span style="color:var(--t3);font-weight:600">(${totalCount-dedupedCount} brand variant di-merge)</span>` : '';
   const runningCard = activeSupps.length === 0
     ? `<div class="card">
        <div class="card-title"><span class="ico">📅</span> Running Sekarang — ${qLbl}</div>
@@ -252,7 +267,7 @@ export function pOverview(){
        <div class="card-title">
          <span class="ico">📅</span>
          <span>Running Sekarang — ${qLbl}</span>
-         <span style="margin-left:auto;font-size:10.5px;color:var(--t2);font-weight:600">${dayLbl} · ${activeSupps.length} supplement</span>
+         <span style="margin-left:auto;font-size:10.5px;color:var(--t2);font-weight:600">${dayLbl} · ${dedupedCount} supplement${dedupeNote}</span>
        </div>
        ${sortedTimings.map(t => {
          const supps = timingGroups.get(t);
@@ -271,7 +286,7 @@ export function pOverview(){
            </div>`).join('')}
          </div>`;
        }).join('')}
-       <div class="note" style="margin-top:8px">Schedule harian dari timing_note + daily_servings. Edit di Compounds tab.</div>
+       <div class="note" style="margin-top:8px">Schedule harian dari timing_note + daily_servings. Brand variant sama fungsi auto-merged (representative = score tertinggi).</div>
      </div>`;
 
   // ── Card 2: Biaya per Kategori

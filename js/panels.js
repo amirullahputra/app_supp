@@ -1,13 +1,13 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=13';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=14';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
   inventoryStatus, daysToEmpty,
   scoreCol, scoreLabel,
   extractTier, applyFilters,
-  funcKey
-} from './state.js?v=13';
+  funcKey, ingredientName
+} from './state.js?v=14';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -223,20 +223,20 @@ export function pOverview(){
     .sort((a,b) => (b.efficiency_score||0) - (a.efficiency_score||0));
 
   // ── Card 1: Running Sekarang — group by timing_note
-  // Auto-dedupe by funcKey: kalau 2 brand variant aktif (mis. Creatine 300g + 1kg),
-  // tampil 1 row aja (yang score tertinggi). User ga perlu konsumsi 2× per hari.
+  // Dedupe by ingredientName (Vit D3 5000 + Vit D3 10000 → 1 row "Vit D3" yang score tertinggi)
+  // Display inline: [icon] [kandungan] [dosis] [brand] · [daily × unit]
   const today = new Date();
   const dayLbl = today.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-  // Step 1: dedupe activeSupps by funcKey → pick representative (highest score)
-  const funcMap = new Map();
+  // Step 1: dedupe activeSupps by ingredientName → pick representative (highest score)
+  const ingMap = new Map();
   activeSupps.forEach(s => {
-    const key = funcKey(s.name);
-    const existing = funcMap.get(key);
+    const key = ingredientName(s.name);
+    const existing = ingMap.get(key);
     if(!existing || (s.efficiency_score||0) > (existing.efficiency_score||0)){
-      funcMap.set(key, s);
+      ingMap.set(key, s);
     }
   });
-  const dedupedSupps = [...funcMap.values()];
+  const dedupedSupps = [...ingMap.values()];
   // Step 2: group by timing_note
   const timingGroups = new Map();
   dedupedSupps.forEach(s => {
@@ -273,17 +273,17 @@ export function pOverview(){
          const supps = timingGroups.get(t);
          return `<div style="margin-bottom:12px">
            <div style="font-size:10.5px;font-weight:800;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;padding-bottom:3px;border-bottom:1.5px solid var(--bdr)">⏱ ${t}</div>
-           ${supps.map(s => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bdr)">
-             <span class="lb ${CAT[s.category].cls}" style="font-size:8px;flex-shrink:0">${CAT[s.category].icon}</span>
-             <div style="flex:1;min-width:0">
-               <div style="font-size:12px;font-weight:700;color:var(--t0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${funcKey(s.name)}</div>
-               <div style="font-size:10px;color:var(--acc);font-weight:600">${s.brand || '—'}</div>
-             </div>
-             <div style="text-align:right;flex-shrink:0">
-               <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:var(--t0)">${s.daily_servings || 1}× ${s.unit}</div>
-               <div style="font-size:9.5px;color:var(--t3)">${s.dose_per_serving || '—'} ${s.dose_unit || s.unit}</div>
-             </div>
-           </div>`).join('')}
+           ${supps.map(s => {
+             const dose = s.dose_per_serving ? `${s.dose_per_serving} ${s.dose_unit || s.unit}` : '—';
+             const daily = `${s.daily_servings || 1}× ${s.unit}`;
+             return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bdr)">
+               <span class="lb ${CAT[s.category].cls}" style="font-size:8px;flex-shrink:0">${CAT[s.category].icon}</span>
+               <b style="font-size:12.5px;color:var(--t0);min-width:160px">${ingredientName(s.name)}</b>
+               <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--t1);font-weight:700;min-width:90px">${dose}</span>
+               <span style="font-size:10.5px;color:var(--acc);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.brand || '—'}</span>
+               <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:800;color:var(--t0);flex-shrink:0">${daily}</span>
+             </div>`;
+           }).join('')}
          </div>`;
        }).join('')}
        <div class="note" style="margin-top:8px">Schedule harian dari timing_note + daily_servings. Brand variant sama fungsi auto-merged (representative = score tertinggi).</div>

@@ -1,5 +1,5 @@
 // State container + cost utilities — single source of truth for runtime data.
-import { SUPPLEMENTS, QUARTERS, VISIBLE_QIDS } from './data.js?v=13';
+import { SUPPLEMENTS, QUARTERS, VISIBLE_QIDS } from './data.js?v=14';
 
 function defaultQuarter(){
   const today = new Date();
@@ -31,7 +31,30 @@ export function extractTier(notes){
   return m ? m[1].toUpperCase() : null;
 }
 
-// Extract "function + dose key" dari nama untuk grouping di container needs.
+// Extract "kandungan/ingredient" — fungsional name aja, tanpa dose + brand.
+// Cap max 2 kata supaya brand prefix kayak "ON Gold Standard" ke-strip.
+// Dipakai untuk dedupe di Running Sekarang (Vit D3 5000 + 10000 → 1 row "Vit D3").
+// - "Vitamin D3 5000 IU Thorne"      → "Vitamin D3"
+// - "Creatine Monohydrate 1kg"       → "Creatine Monohydrate"
+// - "Iron Bisglycinate 25 mg Thorne" → "Iron Bisglycinate"
+// - "Whey Isolate ON Gold Standard"  → "Whey Isolate"
+// - "ALCAR 1000 mg"                  → "ALCAR"
+// - "EAA Essential Amino Acids"      → "EAA Essential"
+export function ingredientName(name){
+  if(!name) return '';
+  const units = new Set(['g','mg','mcg','kg','iu','lbs','ml','oz','tablet','capsule','scoop','softgel','lozenge']);
+  const parts = String(name).trim().split(/\s+/);
+  const out = [];
+  for(const p of parts){
+    if(/^\d/.test(p)) break;
+    if(units.has(p.toLowerCase())) break;
+    out.push(p);
+    if(out.length >= 2) break;  // cap 2 words
+  }
+  return (out.join(' ') || name).trim();
+}
+
+// Extract "function + dose key" dari nama untuk grouping di container needs (dose-aware).
 // Logic: func name + dose value + unit. Brand suffix di-strip.
 // - "Creatine Monohydrate 300g ON"   → "Creatine Monohydrate 300g"
 // - "Vitamin D3 5000 IU Thorne"      → "Vitamin D3 5000 IU"

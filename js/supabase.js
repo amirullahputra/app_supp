@@ -1,8 +1,8 @@
 // Supabase config + auth + DB layer.
 // Pattern: bypass GoTrueClient (navigator.locks hang di Chrome incognito) dengan
 // authFetch + JWT cache. Lihat pep_fl/js/supabase.js untuk root context.
-import { _setSupplements, SUPPLEMENTS } from './data.js?v=1';
-import { S } from './state.js?v=1';
+import { _setSupplements, SUPPLEMENTS } from './data.js?v=2';
+import { S } from './state.js?v=2';
 
 const SUPA_URL = 'https://guhhoqpvwzzrlwgfugsb.supabase.co';
 const SUPA_KEY = 'sb_publishable_yu8KTS5mId2hV7kVjScvZA_-geYqKHv';
@@ -66,7 +66,7 @@ let _suppLoaded = false;
 export async function loadSupplements(){
   if(_suppLoaded) return;
   const rows = await restFetch('supplements',
-    'select=*&order=category.asc,name.asc');
+    'select=*&order=efficiency_score.desc.nullslast,name.asc');
   _setSupplements(rows || []);
   _suppLoaded = true;
 }

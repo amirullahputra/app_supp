@@ -12,8 +12,8 @@ function showInitError(label, err){
 window.addEventListener('error', (e) => showInitError('Script Error', e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => showInitError('Promise Rejection', e.reason));
 
-import { S } from './state.js?v=1';
-import { SUPPLEMENTS, CAT, TIMING_OPTS } from './data.js?v=1';
+import { S } from './state.js?v=2';
+import { SUPPLEMENTS, CAT, TIMING_OPTS } from './data.js?v=2';
 import {
   loadSupplements, saveSupplementEdit, createSupplement,
   loadInventory, saveInventory,
@@ -21,10 +21,10 @@ import {
   loadStacks, loadInitial,
   openAuthModal, closeAuthModal, doLogin, doLogout, onAuthBtnClick,
   updateAuthUI, setupAuthListener, supa
-} from './supabase.js?v=1';
-import * as panelFns from './panels.js?v=1';
-import * as supaFns from './supabase.js?v=1';
-import * as stateModule from './state.js?v=1';
+} from './supabase.js?v=2';
+import * as panelFns from './panels.js?v=2';
+import * as supaFns from './supabase.js?v=2';
+import * as stateModule from './state.js?v=2';
 
 // Expose to window for inline onclick handlers
 Object.assign(window, panelFns, supaFns, stateModule, { S, SUPPLEMENTS, CAT });
@@ -74,6 +74,7 @@ window.openSuppEdit = function(suppId){
   document.getElementById('se-doseunit').value = s?.dose_unit || 'mg';
   document.getElementById('se-servings').value = s?.servings_per_container || '';
   document.getElementById('se-price').value = s?.price_idr || '';
+  document.getElementById('se-score').value = s?.efficiency_score ?? '';
   document.getElementById('se-timing').value = s?.timing_note || '';
   document.getElementById('se-notes').value = s?.notes || '';
   document.getElementById('supp-edit-err').textContent = '';
@@ -97,6 +98,7 @@ window.saveSuppEdit = async function(){
     dose_unit: document.getElementById('se-doseunit').value,
     servings_per_container: parseInt(document.getElementById('se-servings').value) || null,
     price_idr: parseInt(document.getElementById('se-price').value) || null,
+    efficiency_score: parseInt(document.getElementById('se-score').value) || null,
     timing_note: document.getElementById('se-timing').value.trim() || null,
     notes: document.getElementById('se-notes').value.trim() || null,
   };

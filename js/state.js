@@ -1,5 +1,5 @@
 // State container — single source of truth for runtime data.
-import { SUPPLEMENTS } from './data.js?v=1';
+import { SUPPLEMENTS } from './data.js?v=2';
 
 export let S = {
   user: null,
@@ -15,6 +15,22 @@ export let S = {
 // Format Rupiah
 export const rp  = n => 'Rp '+Math.round(n).toLocaleString('id-ID');
 export const rpM = n => n>=1e6 ? 'Rp '+(n/1e6).toFixed(n%1e6===0?0:1)+' jt' : rp(n);
+
+// Score color (tinggi = hijau, rendah = merah)
+export function scoreCol(s){
+  if(s == null) return 'var(--t3)';
+  if(s >= 85) return 'var(--vit)';   // green
+  if(s >= 65) return 'var(--pro)';   // amber
+  if(s >= 45) return 'var(--pwo)';   // red-orange
+  return 'var(--t3)';                // gray
+}
+export function scoreLabel(s){
+  if(s == null) return '—';
+  if(s >= 85) return 'Strong';
+  if(s >= 65) return 'Proven';
+  if(s >= 45) return 'Situational';
+  return 'Weak';
+}
 
 // Date helpers
 export function todayISO(){ return new Date().toISOString().split('T')[0]; }

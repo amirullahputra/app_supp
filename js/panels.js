@@ -1,6 +1,6 @@
 // Panel render functions — 5 tabs.
-import { CAT, SUPPLEMENTS, TIMING_OPTS } from './data.js?v=1';
-import { S, rp, rpM, todayISO, daysAgo, daysToEmpty, inventoryStatus, avgDailyServings, monthlyCost } from './state.js?v=1';
+import { CAT, SUPPLEMENTS, TIMING_OPTS } from './data.js?v=2';
+import { S, rp, rpM, todayISO, daysAgo, daysToEmpty, inventoryStatus, avgDailyServings, monthlyCost, scoreCol, scoreLabel } from './state.js?v=2';
 
 // Empty-state helper
 function emptyState(icon, msg){
@@ -26,7 +26,10 @@ export function pCatalog(){
       : status==='restock' ? `<span class="badge-restock">⚠ Restock</span>`
       : `<span class="badge-ok">✓ OK</span>`;
     const doseUnit = s.dose_unit || s.unit;
+    const score = s.efficiency_score;
+    const sc = scoreCol(score);
     return `<tr>
+      <td class="c"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:${sc}">${score ?? '—'}</div><div style="font-size:9px;color:var(--t3)">${scoreLabel(score)}</div></td>
       <td>${catBadge(s.category)}</td>
       <td><div style="font-weight:700;color:var(--t0)">${s.name}</div>
           <div style="font-size:10px;color:var(--t3)">${s.brand || '—'}</div></td>
@@ -41,17 +44,23 @@ export function pCatalog(){
   return `<div class="card">
     <div class="card-title">
       <span class="ico">📚</span>
-      <span>Catalog — ${SUPPLEMENTS.length} supplement</span>
+      <span>Catalog — ${SUPPLEMENTS.length} supplement · sorted by score</span>
       <span style="margin-left:auto"><button class="btn btn-primary btn-sm" onclick="openSuppEdit(null)">+ Tambah Supplement</button></span>
     </div>
     <table>
       <thead><tr>
-        <th>Kategori</th><th>Name</th><th class="c">Dose</th><th class="c">Cont</th>
+        <th class="c">Score</th><th>Kategori</th><th>Name</th><th class="c">Dose</th><th class="c">Cont</th>
         <th class="r">Harga</th><th class="c">Stock</th><th class="c">Action</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="note" style="margin-top:10px">Catalog shared (semua user lihat sama). Stock per user. Klik Edit untuk update harga/dosis.</div>
+    <div class="note" style="margin-top:10px">
+      <b>Score 0-100</b> = utility × evidence × value-for-money. 85+ <span style="color:var(--vit);font-weight:700">Strong</span> ·
+      65-84 <span style="color:var(--pro);font-weight:700">Proven</span> ·
+      45-64 <span style="color:var(--pwo);font-weight:700">Situational</span> ·
+      &lt;45 <span style="color:var(--t3);font-weight:700">Weak</span>.
+      Catalog shared antar user; stock per user. Klik Edit untuk update harga/dosis/score.
+    </div>
   </div>`;
 }
 

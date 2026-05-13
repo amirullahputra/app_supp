@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1">
+  <link rel="stylesheet" href="css/style.css?v=2">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -89,6 +89,7 @@
         </div>
         <div class="form-row"><label>Servings/container</label><input id="se-servings" type="number" class="input"></div>
         <div class="form-row"><label>Price (IDR)</label><input id="se-price" type="number" class="input"></div>
+        <div class="form-row"><label>Score (0-100)</label><input id="se-score" type="number" min="0" max="100" class="input" placeholder="e.g. 85"></div>
         <div class="form-row form-row-wide"><label>Timing</label><input id="se-timing" class="input" placeholder="e.g. Post-workout, Pagi"></div>
         <div class="form-row form-row-wide"><label>Notes</label><textarea id="se-notes" class="input" rows="2"></textarea></div>
       </div>
@@ -136,8 +137,8 @@
   </div>
 
   <div id="save-ind" class="save-ind">✓ Tersimpan</div>
-  <div id="app-version" class="app-version">v=1</div>
+  <div id="app-version" class="app-version">v=2</div>
 
-  <script type="module" src="js/main.js?v=1"></script>
+  <script type="module" src="js/main.js?v=2"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 // State container + cost utilities — single source of truth for runtime data.
-import { SUPPLEMENTS, QUARTERS, VISIBLE_QIDS } from './data.js?v=9';
+import { SUPPLEMENTS, QUARTERS, VISIBLE_QIDS } from './data.js?v=10';
 
 function defaultQuarter(){
   const today = new Date();
@@ -29,6 +29,29 @@ export function extractTier(notes){
   if(!notes) return null;
   const m = String(notes).match(/\b([SABCDF])\s+tier\b/);
   return m ? m[1].toUpperCase() : null;
+}
+
+// Extract "function key" dari nama supplement untuk grouping.
+// Tujuan: "Creatine Monohydrate 1kg" + "Creatine Monohydrate 300g ON" → key sama "Creatine Monohydrate"
+// Heuristik: ambil word2 dari nama, stop di token yang start dengan digit atau unit.
+export function funcKey(name){
+  if(!name) return '';
+  const units = new Set(['g','mg','mcg','kg','iu','lbs','ml','oz','tablet','capsule','scoop','softgel','lozenge']);
+  const parts = String(name).trim().split(/\s+/);
+  const out = [];
+  for(const p of parts){
+    if(/^\d/.test(p)) break;
+    if(units.has(p.toLowerCase())) break;
+    out.push(p);
+  }
+  return (out.join(' ') || name).trim();
+}
+
+// "Variant suffix" — sisa nama setelah funcKey (e.g. "1kg" dari "Creatine Monohydrate 1kg")
+export function funcVariant(name){
+  const key = funcKey(name);
+  const rest = String(name || '').slice(key.length).trim();
+  return rest || name;
 }
 
 // Apply S.search + S.tierFilter ke supplement list (Compounds + DM Library)

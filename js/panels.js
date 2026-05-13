@@ -1,12 +1,13 @@
 // 4-tab panels mirror pep_fl: Overview · DM · Budget · Compounds.
-import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=9';
+import { CAT, SUPPLEMENTS, QUARTERS, VISIBLE_QIDS, STAGES } from './data.js?v=10';
 import {
   S, rp, rpM, quarterLabel, daysInQuarter, quarterDateRange,
   quarterCost, monthlyCost, selFor,
   inventoryStatus, daysToEmpty,
   scoreCol, scoreLabel,
-  extractTier, applyFilters
-} from './state.js?v=9';
+  extractTier, applyFilters,
+  funcKey, funcVariant
+} from './state.js?v=10';
 
 // ── HELPERS ──
 function emptyState(icon, msg){
@@ -190,8 +191,10 @@ export function pOverview(){
     }
   </div>`;
 
-  // ── Card 4: Kebutuhan Container per supplement
-  const containerRecap = sortedSelected.map(s => {
+  // ── Card 4: Kebutuhan Container — GROUP by funcKey (same function = same group)
+  // Mis. "Creatine Monohydrate 1kg" + "Creatine Monohydrate 300g ON" → 1 group "Creatine Monohydrate"
+  const groupMap = new Map();
+  sortedSelected.forEach(s => {
     let containers = 0, cost = 0;
     scopeQuarters.forEach(q => {
       if(selFor(q).has(s.id)){
@@ -200,23 +203,43 @@ export function pOverview(){
         cost += r.cost;
       }
     });
-    return { name: s.name, cat: s.category, containers, cost, unit: s.unit };
-  }).filter(r => r.containers > 0).sort((a,b) => b.containers - a.containers);
-  const maxC = Math.max(1, ...containerRecap.map(r => r.containers));
-  const totalC = containerRecap.reduce((a,r) => a+r.containers, 0);
-  const totalCost = containerRecap.reduce((a,r) => a+r.cost, 0);
+    if(containers <= 0) return;
+    const key = funcKey(s.name);
+    if(!groupMap.has(key)){
+      groupMap.set(key, { funcName: key, cat: s.category, containers: 0, cost: 0, variants: [] });
+    }
+    const g = groupMap.get(key);
+    g.containers += containers;
+    g.cost += cost;
+    g.variants.push({ name: s.name, brand: s.brand, containers, cost, variant: funcVariant(s.name) });
+  });
+  const containerGroups = [...groupMap.values()].sort((a,b) => b.containers - a.containers);
+  const maxC = Math.max(1, ...containerGroups.map(g => g.containers));
+  const totalC = containerGroups.reduce((a,g) => a+g.containers, 0);
+  const totalCost = containerGroups.reduce((a,g) => a+g.cost, 0);
 
   const containerCard = `<div class="card">
-    <div class="card-title"><span class="ico">📦</span> Kebutuhan Container — ${qLbl}</div>
-    ${containerRecap.length === 0
+    <div class="card-title"><span class="ico">📦</span> Kebutuhan Container — ${qLbl} <span style="font-size:10px;font-weight:600;color:var(--t3);margin-left:6px">grouped by function</span></div>
+    ${containerGroups.length === 0
       ? '<div style="color:var(--t3);font-size:11px;padding:14px 0">Tidak ada kebutuhan container.</div>'
-      : containerRecap.map(r => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
-          <div style="width:170px;font-size:11px"><span class="lb ${CAT[r.cat].cls}" style="font-size:8px">${CAT[r.cat].label}</span> ${r.name}</div>
-          <div style="flex:1;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden">
-            <div style="width:${r.containers/maxC*100}%;height:100%;background:var(--acc)"></div>
-          </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;min-width:60px;text-align:right">${r.containers} btl</div>
-        </div>`).join('') + `<div style="border-top:2px solid var(--bdr2);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between">
+      : containerGroups.map(g => {
+          const variantText = g.variants.length > 1
+            ? g.variants.map(v => `${v.containers}× ${v.variant}${v.brand?` (${v.brand})`:''}`).join(' · ')
+            : (g.variants[0].brand || '');
+          return `<div style="padding:6px 0;border-bottom:1px solid var(--bdr)">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:200px;font-size:11.5px">
+                <span class="lb ${CAT[g.cat].cls}" style="font-size:8px">${CAT[g.cat].icon} ${CAT[g.cat].label}</span>
+                <b style="color:var(--t0)">${g.funcName}</b>
+              </div>
+              <div style="flex:1;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden">
+                <div style="width:${g.containers/maxC*100}%;height:100%;background:var(--acc)"></div>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;min-width:60px;text-align:right;color:var(--acc)">${g.containers} btl</div>
+            </div>
+            ${variantText ? `<div style="font-size:9.5px;color:var(--t3);margin-top:3px;margin-left:8px">${variantText}</div>` : ''}
+          </div>`;
+        }).join('') + `<div style="border-top:2px solid var(--bdr2);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between">
           <span style="font-size:11px;font-weight:800">Total Cost: <span style="font-family:'JetBrains Mono',monospace;color:var(--acc)">${rpM(totalCost)}</span></span>
           <span style="font-size:11px;font-weight:800">Total: <span style="font-family:'JetBrains Mono',monospace;color:var(--acc)">${totalC} container</span></span>
         </div>`

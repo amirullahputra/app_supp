@@ -6,23 +6,24 @@
   <title>Supplement Tracker — VHM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=15">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=18">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="app">
     <div class="topbar">
       <div class="topbar-brand">
-        <div class="topbar-ico">💊</div>
+        <div class="topbar-ico" style="background:#EA580C;color:#fff">💊</div>
         <div>
           <div class="topbar-title">Supplement Tracker</div>
           <div class="topbar-sub">Vitamin · Protein · Stack Per Quarter</div>
         </div>
       </div>
-      <div class="topbar-auth">
-        <span id="auth-user-label" style="font-size:12px;color:var(--t2)">Belum login</span>
-        <button id="auth-action-btn" onclick="onAuthBtnClick()" class="btn btn-sm">Login</button>
+      <div class="topbar-auth" style="display:flex;align-items:center;gap:10px">
+        <span id="auth-user-label" style="font-size:11px;color:var(--t2);font-weight:500"></span>
+        <button id="auth-action-btn" onclick="onAuthBtnClick()" class="btn btn-sm btn-primary" style="border-radius:20px;padding:6px 16px">Login</button>
       </div>
     </div>
 
@@ -123,7 +124,7 @@
   </div>
 
   <div id="save-ind" class="save-ind">✓ Tersimpan</div>
-  <div id="app-version" class="app-version">v=15</div>
+  <div id="app-version" class="app-version">v=18</div>
 
   <script type="module" src="js/main.js?v=15"></script>
 </body>
